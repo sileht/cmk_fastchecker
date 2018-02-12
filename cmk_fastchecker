@@ -12,12 +12,11 @@ start_gunicorn() {
 	[ "$1" == "test" ] || daemon="--daemon"
 	cd $BASE_DIR
 	source venv/bin/activate
-	# --workers $(($(nproc) * 2 + 1)) \
 	gunicorn \
 		--name "cmk_fastchecker" \
 		--bind 127.0.0.1:5001 \
 		--worker-class "gevent" \
-		--workers 1 \
+		--workers $(($(nproc) * 2 + 1)) \
 		--timeout 240 \
 		--preload \
 		--log-file $LOG_DIR/error.log \
