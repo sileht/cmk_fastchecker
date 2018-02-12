@@ -9,20 +9,55 @@ here=$(readlink -f $(dirname $0))
 cd $here
 mkdir -p $TMP_DIR
 
-[ "$1" == "-f" ] && FORCE=1
+[ "$1" == "-f" ] && FORCE=1 LOG=1
+[ "$1" == "-v" ] && LOG=1
+
+get_ipv6(){
+        local ip="$1" digit net6
+        case ${ip%.*} in
+                91.224.148) net6=80;;
+                91.224.149) net6=81;;
+                89.234.156) net6=83;;
+                89.234.157) net6=84;;
+        esac
+        digit=$(printf '%00x' ${ip##*.})
+        [ "$net6" ] && echo "2a03:7220:80${net6}:${digit}00::1"
+}
+
+log() { [ "$LOG" ] && echo "$(date --rfc-3339=seconds) : $@"; }
+
+cleanup() {
+	rmdir $TMP_DIR/run 2>/dev/null
+}
+trap cleanup EXIT
+
+if ! mkdir $TMP_DIR/run 2>/dev/null ; then
+	log "cmk_fastpinger is already running"
+	exit 0
+fi
 
 if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
-	> $TMP_DIR/ips.lst
+	log "Start generating ips list..."
+	> $TMP_DIR/ips.lst.new
 	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' networks.lst | while read network garbage; do
 		is_ipv6=$(echo $network | grep '::')
 		if [ "$is_ipv6" ]; then
-			echo $network >> $TMP_DIR/ips.lst
+			echo $network >> $TMP_DIR/ips.lst.new
 		else
-			prips $network >> $TMP_DIR/ips.lst
+			prips $network | while read ip ; do
+				echo $ip >> $TMP_DIR/ips.lst.new
+				ipv6=$(get_ipv6 $ip)
+				[ "$ipv6" ] && echo $ipv6 >> $TMP_DIR/ips.lst.new
+			done
 		fi
 	done
+	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
 fi
 
+log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
 outfile=$TMP_DIR/cmk_fastpinger.dump
-fping -q -C5 -p 80 -i 1 -f $TMP_DIR/ips.lst 2> ${outfile}.tmp 
+cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/ips.lst"
+log $cmd
+$cmd 2> ${outfile}.tmp
 mv -f ${outfile}.tmp ${outfile}
+log "Stop fping..."

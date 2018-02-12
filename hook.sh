@@ -29,17 +29,18 @@ else
             -4|-6) ip_familly=${1#-}; shift;;
             -w) warn="$2"; shift ; shift ;;
             -c) crit="$2"; shift ; shift ;;
-            -n|-i|-I|-m|-l|-t|-b) shift ; shift ;;  # We hardcode them in cmk_fastpinger
+            -n|-i|-I|-l|-t|-b) shift ; shift ;;  # We hardcode them in cmk_fastpinger
             -H) dest=$2; shift;  shift;;
+            -m) multi=$2; shift;  shift;;
             --) shift; break;;
             *) break;;
         esac
     done
-    [ "$@" ] && dest="$@"
+    [ "$#" -ge 1 ] && dest="$@"
 
-    # FIXME(sileht): IPv6
-    if [ "$ip_familly" == "6" ]; then
-        exec ~/lib/nagios/plugins/check_icmp -6 -w "${warn}" -c "${crit}" "$dest"
+    # FIXME(sileht): Multimode
+    if [ "$multi" ]; then
+        exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -m $multi -w "${warn}" -c "${crit}" "$dest"
     else
         # Bash need integer
         rt_warn=$(echo $warn | awk -F, '{gsub(/\..*/, "", $1); print $1"000"}')

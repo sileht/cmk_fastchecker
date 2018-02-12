@@ -25,6 +25,13 @@ start_gunicorn() {
 		--pid $PIDFILE \
 		$daemon \
 		cmk_fastchecker:app
+	waittime=60
+	echo -n 'waiting for pidfile..'
+	while [ ! -e "$PIDFILE" ] && [ $waittime -gt 0 ]; do
+		echo -n .
+		sleep 1
+		waiting=$((waiting + 1))
+	done
 }
 
 case "$1" in
