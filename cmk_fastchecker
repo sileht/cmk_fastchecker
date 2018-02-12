@@ -1,0 +1,91 @@
+#!/bin/bash
+
+. /omd/sites/ttnn/etc/omd/site.conf
+
+LOG_DIR="/omd/sites/ttnn/var/log/cmk_fastchecker"
+TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastchecker/gunicorn"
+BASE_DIR="/omd/sites/ttnn/etc/check_mk/cmk_fastchecker"
+TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastchecker/gunicorn"
+PIDFILE=$TMP_DIR/cmk_fastchecker.pid
+
+start_gunicorn() {
+	cd $BASE_DIR
+	source venv/bin/activate
+	gunicorn \
+		--name "cmk_fastchecker" \
+		--bind 127.0.0.1:5001 \
+		--worker-class "gevent" \
+		--workers $(($(nproc) * 2 + 1)) \
+		--timeout 240 \
+		--max-requests 5000 \
+		--preload \
+		--daemon \
+		--log-file $LOG_DIR/error.log \
+		--access-logfile $LOG_DIR/access.log \
+		--worker-tmp-dir $TMP_DIR \
+		--pid $PIDFILE \
+		cmk_fastchecker:app
+}
+
+case "$1" in
+    start)
+ 	echo -n 'Starting cmk_fastchecker...'
+	if [ -e "$PIDFILE" ] ; then
+	    PID=$(cat $PIDFILE)
+	    if [ -n "$PID" ] && ps $PID > /dev/null 2>&1 ; then
+		echo "Already running."
+		exit 0
+	    fi
+	    echo "removing stale pid file..."
+	    rm -f $PIDFILE
+	fi
+
+	# make sure, directories are there (ramdisk!)
+	mkdir -p $TMP_DIR $LOG_DIR && start_gunicorn && echo OK || echo Error
+    ;;
+    stop)
+	echo -n 'Stopping cmk_fastchecker...'
+        PID=$(cat $PIDFILE 2>/dev/null)
+        if [ -z "$PID" ] ; then
+	    echo "not running."
+        elif kill "$PID" ; then
+            echo -n 'waiting for termination..'
+	    N=0
+	    while [ -d /proc/$PID ] ; do
+		sleep 0.05
+                if [ $((N % 20)) -eq 0 ]; then
+		    echo -n .
+                fi
+		N=$((N+1))
+		if [ $N -ge 400 ] ; then
+		    echo "still running after 20 secs!"
+		    exit 1
+                fi
+	    done    
+	    echo "OK"
+        else
+	    echo "Failed"
+        fi
+    ;;
+    restart|reload)
+	$0 stop
+	$0 start
+    ;;
+    status)
+	echo -n 'Checking status of cmk_fastchecker...'
+	if [ -e "$PIDFILE" ] ; then
+	    PID=$(cat $PIDFILE)
+	    if [ -n "$PID" ] && ps $PID > /dev/null 2>&1 ; then
+		echo "running"
+		exit 0
+	    fi
+	fi
+	echo "stopped"
+	exit 1
+    ;;
+    *)
+	echo "Usage: $0 {start|stop|restart|reload|status}"
+    ;;
+esac
+
+
