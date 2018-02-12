@@ -54,7 +54,7 @@ The load of our tiny Intel NUC server was around 40-60..., Now it's 0.6.
 
 The goals of cmk_fastchecker is to make icinga/nagios doing only the
 active_checks/scheduling/notification stuffs. cmk_fastchecker will run all
-python stuffs (and maybe icmp checks in the future)
+python stuffs.
 
 
 Configuration

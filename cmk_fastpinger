@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -o pipefail
+
+LOG_DIR="/omd/sites/ttnn/var/log/cmk_fastpinger"
+TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastpinger"
+
+here=$(readlink -f $(dirname $0))
+cd $here
+mkdir -p $TMP_DIR
+
+[ "$1" == "-f" ] && FORCE=1
+
+if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
+	> $TMP_DIR/ips.lst
+	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' networks.lst | while read network garbage; do
+		is_ipv6=$(echo $network | grep '::')
+		if [ "$is_ipv6" ]; then
+			echo $network >> $TMP_DIR/ips.lst
+		else
+			prips $network >> $TMP_DIR/ips.lst
+		fi
+	done
+fi
+
+outfile=$TMP_DIR/cmk_fastpinger.dump
+fping -q -C5 -p 80 -i 1 -f $TMP_DIR/ips.lst 2> ${outfile}.tmp 
+mv -f ${outfile}.tmp ${outfile}
