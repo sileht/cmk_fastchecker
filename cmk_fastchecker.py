@@ -71,12 +71,18 @@ def preload_checks():
     sys.modules["check_mk"].load_checks()
     sys.modules["check_mk"].set_use_cachefile()
     sys.modules["check_mk"].enforce_using_agent_cache()
+    sys.modules["check_mk"].read_config_files()
 
 
 # NOTE(sileht): Copy of the __main__ of check_mk check
-def run_check(name):
+def run_check(name, verbose=False):
     try:
+        if verbose:
+            sys.modules[name].cmk.log.set_verbosity(verbosity=1)
 	sys.exit(sys.modules[name].runner())
+    except ImportError:
+        sys.stdout.write("UNKNOWN - checks for %s is not loaded" % name)
+        sys.exit(3)
     except SystemExit, e:
 	sys.exit(e.code)
     except Exception, e:
@@ -96,6 +102,9 @@ def run_check(name):
 		traceback.format_exc().replace('\n', '\n      ')))
 	l.close()
 	sys.exit(3)
+    finally:
+        if name in sys.modules:
+            sys.modules[name].cmk.log.set_verbosity(verbosity=0)
 
 
 class FakeStdout(object):
@@ -114,6 +123,16 @@ def check(name):
     with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
 	try:
             run_check(name)
+	except SystemExit, e:
+	    return "%s\n%s" % (e.code, out.data)
+
+
+@app.route("/detail/<name>")
+def detail(name):
+    name = get_modname(name)
+    with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
+	try:
+            run_check(name, verbose=True)
 	except SystemExit, e:
 	    return "%s\n%s" % (e.code, out.data)
 
