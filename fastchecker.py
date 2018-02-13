@@ -2,8 +2,10 @@
 
 from __future__ import print_function
 
+from concurrent import futures
 import imp
 import mock
+import multiprocessing
 import os
 import pwd
 import sys
@@ -14,63 +16,65 @@ import flask
 
 SITENAME = pwd.getpwuid(os.getuid())[0]
 BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
-TMPPATH = "/opt/omd/sites/%s/tmp/fastchecker/checks" % SITENAME
 CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
+
 
 def get_modname(name):
     return name.replace(".", "xDOTx")
 
 
-def preload_checks():
+def create_module(name, data):
+    with mock.patch('sys.path', new=list(sys.path)):
+        code = compile(data, "<string>", "exec")
+        m = imp.new_module(name)
+        eval(code, m.__dict__, m.__dict__)
+        sys.modules[name] = m
+        return m
+
+
+def prep_and_load_module(f):
+    name = get_modname(f[:-3])
+    data = b''
+    with open("%s/%s" % (BASEPATH, f)) as fin:
+        for line in fin.readlines():
+            if line.startswith("register_sigint_handler()"):
+                continue
+            if line.startswith("    sys.exit(do_check"):
+                data = data[:-5] + "def runner():\n"
+                data += line.replace("sys.exit(", "return (")
+                break
+            data += line
     try:
-	os.makedirs(TMPPATH)
-    except OSError:
-	pass
+        m = create_module(name, data)
+    except (IOError, ImportError) as e:
+        print("Fail to load %s: %s"% (f, str(e)))
 
-    print("Loading checks ...")
-    count = 0
-    for f in os.listdir(BASEPATH):
-	if not f.endswith(".py"):
-	    continue
-	name = get_modname(f[:-3])
-	preloadpath = os.path.join(TMPPATH, "%s.py" % name)
-
-	with open(preloadpath, "w+") as fout:
-	    with open("%s/%s" % (BASEPATH, f)) as fin:
-		for line in fin.readlines():
-		    if line.startswith("    sys.exit(do_check"):
-			fout.seek(-5, 1)
-			fout.write("def runner():\n")
-			fout.write(line.replace("sys.exit(", "return ("))
-			break
-		    fout.write(line)
-
-	    fout.seek(0)
-	    # NOTE(sileht): Each check pop the first item from the list
-            # so copy paths to ensure they all have the same list.
-	    with mock.patch('sys.path', new=list(sys.path)):
-                try:
-                    imp.load_module(name, fout, preloadpath, (".py", "rw", imp.PY_SOURCE))
-                except (IOError, ImportError) as e:
-                    print("Fail to load %s: %s"% (f, str(e)))
-	    count += 1
-    print("%d checks loaded" % count)
-
+def prep_and_load_check_mk():
     lastline = "register_sigint_handler"
-    preloadpath = os.path.join(TMPPATH, "check_mk.py")
-    with open(preloadpath, "w+") as fout:
-        with open(CMKPATH, "r") as fin:
-            for line in fin.readlines():
-                if line.startswith(lastline):
-                    break
-                fout.write(line)
-        fout.seek(0)
-        with mock.patch('sys.path', new=list(sys.path)):
-            imp.load_module("check_mk", fout, preloadpath, (".py", "rw", imp.PY_SOURCE))
-    sys.modules["check_mk"].load_checks()
-    sys.modules["check_mk"].set_use_cachefile()
-    sys.modules["check_mk"].enforce_using_agent_cache()
-    sys.modules["check_mk"].read_config_files()
+    data = b''
+    with open(CMKPATH, "r") as fin:
+        for line in fin.readlines():
+            if line.startswith(lastline):
+                break
+            data += line
+    m = create_module("check_mk", data)
+    m.load_checks()
+    m.set_use_cachefile()
+    m.enforce_using_agent_cache()
+    m.read_config_files()
+
+def preload_checks():
+    workers = multiprocessing.cpu_count() * 2 + 1
+    print("Loading checks with %d workers..." % workers)
+    filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
+    print("Loading %d checks..." % len(filenames))
+    with futures.ThreadPoolExecutor(max_workers=workers) as e:
+        fs = [e.submit(prep_and_load_check_mk)]
+        fs.extend([e.submit(prep_and_load_module, f)
+                   for f in filenames])
+        for f in futures.as_completed(fs):
+            f.result()
+    print("%d checks loaded." % len(filenames))
 
 
 # NOTE(sileht): Copy of the __main__ of check_mk check
