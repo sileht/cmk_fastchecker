@@ -23,14 +23,15 @@ start_gunicorn() {
 		--worker-class "gevent" \
 		--workers $(($(nproc) * 2 + 1)) \
 		--timeout 240 \
-		--preload \
+		--graceful-timeout 5 \
+		--threads $(nproc) \
 		--log-file $LOG_DIR/error.log \
 		--worker-tmp-dir $TMP_DIR \
 		--pid $PIDFILE \
 		$daemon \
 		fastchecker:app
 #		--access-logfile $LOG_DIR/access.log \
-	waittime=30
+	waittime=20
 	echo -n 'waiting for pidfile..'
 	while [ ! -e "$PIDFILE" ] && [ $waittime -gt 0 ]; do
 		echo -n .
