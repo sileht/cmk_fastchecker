@@ -14,10 +14,15 @@ mode=$1
 shift
 if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
     host="$1"
-    curl -s http://localhost:5001/$mode/$host | (read ret; cat ; exit $ret)
-    if [ "$?" == "7" ]; then
+    curl -s http://localhost:5001/$mode/$host | (
+        read ret; cat ; exit $ret
+    )
+    ret=$?
+    if [ "$ret" -gt 3 ]; then
         echo "fastchecker unreachable"
-        exit 1
+        exit 3
+    else
+        exit $ret
     fi
 elif [ "$mode" == "ping" ]; then
     fdate=$(stat  -c %x $CMK_FASTPINGER_DUMP | sed 's/\..*//g')
@@ -84,11 +89,12 @@ elif [ "$mode" == "ping" ]; then
             else
                 exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -w "${warn}" -c "${crit}" "$dest"
             fi
-        );
-	ret=$?
-	exit $ret
+        )
+        ret=$?
+        exit $ret
     fi
 else
-	echo "fastchecker hook.sh called with invalid mode: $mode"
-	exit 3
+    echo "fastchecker hook.sh called with invalid mode: $mode"
+    exit 3
 fi
+exit 3
