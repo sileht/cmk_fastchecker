@@ -1,0 +1,2 @@
+# Run fastpinger every minute
+* * * * * source ~/etc/fastchecker.conf; $BASE_DIR/fastpinger;

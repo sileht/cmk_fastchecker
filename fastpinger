@@ -2,8 +2,9 @@
 
 set -o pipefail
 
-LOG_DIR="/omd/sites/ttnn/var/log/cmk_fastpinger"
-TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastpinger"
+SITENAME=$(id -un)
+LOG_DIR="/omd/sites/${SITENAME}/var/log/fastpinger"
+TMP_DIR="/omd/sites/${SITENAME}/tmp/fastpinger"
 
 here=$(readlink -f $(dirname $0))
 cd $here
@@ -32,7 +33,7 @@ cleanup() {
 trap cleanup EXIT
 
 if ! mkdir $TMP_DIR/run 2>/dev/null ; then
-	log "cmk_fastpinger is already running"
+	log "fastpinger is already running"
 	exit 0
 fi
 
@@ -55,7 +56,7 @@ if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ 
 fi
 
 log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
-outfile=$TMP_DIR/cmk_fastpinger.dump
+outfile=$TMP_DIR/fastpinger.dump
 cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/ips.lst"
 log $cmd
 $cmd 2> ${outfile}.tmp

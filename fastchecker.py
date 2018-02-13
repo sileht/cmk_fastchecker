@@ -2,27 +2,23 @@
 
 from __future__ import print_function
 
-import io
 import imp
 import mock
-import sys
-import shutil
-import time
 import os
+import pwd
+import sys
+import time
 
 import cmk
 import flask
 
-BASEPATH = "/omd/sites/ttnn/var/check_mk/precompiled"
-TMPPATH = "/opt/omd/sites/ttnn/tmp/cmk_fastchecker/checks"
-CMKPATH = "/omd/sites/ttnn/share/check_mk/modules/check_mk.py"
+SITENAME = pwd.getpwuid(os.getuid())[0]
+BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
+TMPPATH = "/opt/omd/sites/%s/tmp/fastchecker/checks" % SITENAME
+CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
 
 def get_modname(name):
     return name.replace(".", "xDOTx")
-
-
-def get_nodename(modname):
-    return name.replace("xDOTx", ".")
 
 
 def preload_checks():

@@ -1,31 +1,36 @@
 #!/bin/bash
 
-. /omd/sites/ttnn/etc/omd/site.conf
+SITENAME=$(id -un)
 
-LOG_DIR="/omd/sites/ttnn/var/log/cmk_fastchecker"
-TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastchecker/gunicorn"
-BASE_DIR="/omd/sites/ttnn/etc/check_mk/cmk_fastchecker"
-TMP_DIR="/omd/sites/ttnn/tmp/cmk_fastchecker/gunicorn"
-PIDFILE=$TMP_DIR/cmk_fastchecker.pid
+. /omd/sites/${SITENAME}/etc/omd/site.conf
+. /omd/sites/${SITENAME}/etc/fastchecker.conf
+
+if [ ! "$BASE_DIR" ]; then
+	echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"
+	exit 1
+fi
+LOG_DIR="/omd/sites/${SITENAME}/var/log/fastchecker"
+TMP_DIR="/omd/sites/${SITENAME}/tmp/fastchecker/gunicorn"
+PIDFILE=$TMP_DIR/fastchecker.pid
 
 start_gunicorn() {
 	[ "$1" == "test" ] || daemon="--daemon"
 	cd $BASE_DIR
 	source venv/bin/activate
 	gunicorn \
-		--name "cmk_fastchecker" \
+		--name "fastchecker" \
 		--bind 127.0.0.1:5001 \
 		--worker-class "gevent" \
 		--workers $(($(nproc) * 2 + 1)) \
 		--timeout 240 \
 		--preload \
 		--log-file $LOG_DIR/error.log \
-		--access-logfile $LOG_DIR/access.log \
 		--worker-tmp-dir $TMP_DIR \
 		--pid $PIDFILE \
 		$daemon \
-		cmk_fastchecker:app
-	waittime=60
+		fastchecker:app
+#		--access-logfile $LOG_DIR/access.log \
+	waittime=30
 	echo -n 'waiting for pidfile..'
 	while [ ! -e "$PIDFILE" ] && [ $waittime -gt 0 ]; do
 		echo -n .
@@ -36,7 +41,7 @@ start_gunicorn() {
 
 case "$1" in
     start|test)
- 	echo -n 'Starting cmk_fastchecker...'
+ 	echo -n 'Starting fastchecker...'
 	if [ -e "$PIDFILE" ] ; then
 	    PID=$(cat $PIDFILE)
 	    if [ -n "$PID" ] && ps $PID > /dev/null 2>&1 ; then
@@ -51,7 +56,7 @@ case "$1" in
 	mkdir -p $TMP_DIR $LOG_DIR && start_gunicorn "$1" && echo OK || echo Error
     ;;
     stop)
-	echo -n 'Stopping cmk_fastchecker...'
+	echo -n 'Stopping fastchecker...'
         PID=$(cat $PIDFILE 2>/dev/null)
         if [ -z "$PID" ] ; then
 	    echo "not running."
@@ -79,7 +84,7 @@ case "$1" in
 	$0 start
     ;;
     status)
-	echo -n 'Checking status of cmk_fastchecker...'
+	echo -n 'Checking status of fastchecker...'
 	if [ -e "$PIDFILE" ] ; then
 	    PID=$(cat $PIDFILE)
 	    if [ -n "$PID" ] && ps $PID > /dev/null 2>&1 ; then

@@ -7,18 +7,19 @@ min() {
     printf "%s\n" "$@" | sort -g | grep -v -- '-' | head -n1
 }
 
-CMK_FASTPINGER_DUMP="/omd/sites/ttnn/tmp/cmk_fastpinger/cmk_fastpinger.dump"
+SITENAME="$(id -un)"
+CMK_FASTPINGER_DUMP="/omd/sites/$SITENAME/tmp/fastpinger/fastpinger.dump"
+
 mode=$1
-if [ "$mode" != "ping" ]; then
-    url="$@"
-    curl -s http://localhost:5001/$url | (read ret; cat ; exit $ret)
+shift
+if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
+    host="$@"
+    curl -s http://localhost:5001/$mode/$host | (read ret; cat ; exit $ret)
     if [ "$?" == "7" ]; then
-        echo "cmk_fastchecker unreachable"
+        echo "fastchecker unreachable"
         exit 1
     fi
-
-else
-    shift
+elif [ "$mode" == "ping" ]; then
     fdate=$(stat  -c %x $CMK_FASTPINGER_DUMP | sed 's/\..*//g')
 
     OPTS=`getopt -o 46w:c:n:i:I:m:l:t:b:H: -n 'parse-options' -- "$@"`
@@ -29,7 +30,7 @@ else
             -4|-6) ip_familly=${1#-}; shift;;
             -w) warn="$2"; shift ; shift ;;
             -c) crit="$2"; shift ; shift ;;
-            -n|-i|-I|-l|-t|-b) shift ; shift ;;  # We hardcode them in cmk_fastpinger
+            -n|-i|-I|-l|-t|-b) shift ; shift ;;  # We hardcode them in fastpinger
             -H) dest=$2; shift;  shift;;
             -m) multi=$2; shift;  shift;;
             --) shift; break;;
@@ -87,4 +88,7 @@ else
 	ret=$?
 	exit $ret
     fi
+else
+	echo "fastchecker hook.sh called with invalid mode: $mode"
+	exit 3
 fi
