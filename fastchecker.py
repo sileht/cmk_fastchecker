@@ -49,7 +49,10 @@ def preload_checks():
 	    # NOTE(sileht): Each check pop the first item from the list
             # so copy paths to ensure they all have the same list.
 	    with mock.patch('sys.path', new=list(sys.path)):
-		imp.load_module(name, fout, preloadpath, (".py", "rw", imp.PY_SOURCE))
+                try:
+                    imp.load_module(name, fout, preloadpath, (".py", "rw", imp.PY_SOURCE))
+                except (IOError, ImportError) as e:
+                    print("Fail to load %s: %s"% (f, str(e)))
 	    count += 1
     print("%d checks loaded" % count)
 
