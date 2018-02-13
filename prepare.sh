@@ -20,7 +20,6 @@ venv/bin/pip install -U -r requirements.txt
 
 echo "BASE_DIR=\"$here\"" > $SITE/etc/fastchecker.conf
 ln -sf $here/etc/init.d/fastchecker $SITE/etc/init.d/
-ln -sf $here/etc/init-hooks.d/icinga-start-pre $SITE/etc/init-hooks.d
-ln -sf $here/etc/init-hooks.d/icinga-stop-pre $SITE/etc/init-hooks.d
+ln -sf $here/etc/init-hooks.d/icinga-restart-pre $SITE/etc/init-hooks.d
 ln -sf $here/etc/cron.d/fastpinger $SITE/etc/cron.d
 ln -sf ../init.d/fastchecker $SITE/etc/rc.d/30-fastchecker
