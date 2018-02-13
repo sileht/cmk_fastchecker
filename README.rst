@@ -72,14 +72,14 @@ checks by:
         define command {
           command_name  check-mk
           # command_line  python $USER4$/var/check_mk/precompiled/"$HOSTNAME$"
-          command_line  $USER4$/etc/check_mk/fastchecker/hook.sh "check $HOSTNAME$"
+          command_line  $USER4$/etc/check_mk/fastchecker/hook.sh check "$HOSTNAME$"
         }
 
         # Inventory check
         define command {
           command_name  check-mk-inventory
           # command_line  check_mk --cache --check-discovery "$HOSTNAME$"
-          command_line  $USER4$/etc/check_mk/fastchecker/hook.sh "inventory $HOSTNAME$"
+          command_line  $USER4$/etc/check_mk/fastchecker/hook.sh inventory "$HOSTNAME$"
         }
 
 	# Commands for services of PING-only hosts

@@ -13,7 +13,7 @@ CMK_FASTPINGER_DUMP="/omd/sites/$SITENAME/tmp/fastpinger/fastpinger.dump"
 mode=$1
 shift
 if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
-    host="$@"
+    host="$1"
     curl -s http://localhost:5001/$mode/$host | (read ret; cat ; exit $ret)
     if [ "$?" == "7" ]; then
         echo "fastchecker unreachable"
