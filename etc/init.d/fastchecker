@@ -10,34 +10,31 @@ if [ ! "$BASE_DIR" ]; then
 	exit 1
 fi
 LOG_DIR="/omd/sites/${SITENAME}/var/log/fastchecker"
-TMP_DIR="/omd/sites/${SITENAME}/tmp/fastchecker/gunicorn"
+TMP_DIR="/omd/sites/${SITENAME}/tmp/fastchecker/uwsgi"
 PIDFILE=$TMP_DIR/fastchecker.pid
 
-start_gunicorn() {
-	[ "$1" == "test" ] || daemon="--daemon"
+
+start_uwsgi() {
+	[ "$1" == "test" ] || daemon="--daemonize2 $LOG_DIR/error.log"
 	cd $BASE_DIR
+	unset LD_LIBRARY_PATH
 	source venv/bin/activate
-	gunicorn \
-		--name "fastchecker" \
-		--bind 127.0.0.1:5001 \
-		--worker-class "gevent" \
-		--workers $(($(nproc) * 2 + 1)) \
-		--timeout 240 \
-		--graceful-timeout 5 \
-		--threads $(nproc) \
-		--log-file $LOG_DIR/error.log \
-		--worker-tmp-dir $TMP_DIR \
-		--pid $PIDFILE \
+	uwsgi \
+		--master \
+		--http 127.0.0.1:5001 \
+		--need-app \
+		--enable-threads \
+		--thunder-lock \
+		--add-header "Connection: Close" \
+		--procname-prefix-spaced fastchecker \
+		--die-on-term \
+		--max-requests 20 \
+		--processes $(($(nproc) * 2 + 1)) \
+		--pidfile2 $PIDFILE \
+		-H $BASE_DIR/venv \
 		$daemon \
-		fastchecker:app
-#		--access-logfile $LOG_DIR/access.log \
-	waittime=20
-	echo -n 'waiting for pidfile..'
-	while [ ! -e "$PIDFILE" ] && [ $waittime -gt 0 ]; do
-		echo -n .
-		sleep 1
-		waiting=$((waiting + 1))
-	done
+		--wsgi-file fastchecker.py \
+
 }
 
 case "$1" in
@@ -54,7 +51,7 @@ case "$1" in
 	fi
 
 	# make sure, directories are there (ramdisk!)
-	mkdir -p $TMP_DIR $LOG_DIR && start_gunicorn "$1" && echo OK || echo Error
+	mkdir -p $TMP_DIR $LOG_DIR && start_uwsgi "$1" && echo OK || echo Error
     ;;
     stop)
 	echo -n 'Stopping fastchecker...'

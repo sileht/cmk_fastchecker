@@ -2,10 +2,8 @@
 
 from __future__ import print_function
 
-from concurrent import futures
 import imp
 import mock
-import multiprocessing
 import os
 import pwd
 import sys
@@ -16,20 +14,41 @@ import flask
 
 SITENAME = pwd.getpwuid(os.getuid())[0]
 BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
+TMPPATH = "/omd/sites/%s/tmp/fastchecker/checks" % SITENAME
 CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
 
+
+CODES = {}
 
 def get_modname(name):
     return name.replace(".", "xDOTx")
 
 
-def create_module(name, data):
+def reload_module(name):
+    if name in sys.modules:
+        del sys.modules[name]
+    m = imp.new_module(name)
+    eval(CODES[name], m.__dict__, m.__dict__)
+    sys.modules[name] = m
+    return m
+
+
+def create_module_from_memory(name, data):
     with mock.patch('sys.path', new=list(sys.path)):
-        code = compile(data, "<string>", "exec")
-        m = imp.new_module(name)
-        eval(code, m.__dict__, m.__dict__)
-        sys.modules[name] = m
-        return m
+        CODES[name]= compile(data, "<string>", "exec")
+        return reload_module(name)
+
+
+def create_module_from_file(name, data):
+    path = "%s/%s.py" % (TMPPATH, name)
+    with open(path, "w+") as f:
+        f.write(data)
+        f.seek(0)
+        with mock.patch('sys.path', new=list(sys.path)):
+            return imp.load_module(name, f, path, (".py", "rw", imp.PY_SOURCE))
+
+
+create_module = create_module_from_memory
 
 
 def prep_and_load_module(f):
@@ -45,7 +64,7 @@ def prep_and_load_module(f):
                 break
             data += line
     try:
-        m = create_module(name, data)
+        create_module(name, data)
     except (IOError, ImportError) as e:
         print("Fail to load %s: %s"% (f, str(e)))
 
@@ -57,13 +76,11 @@ def prep_and_load_check_mk():
             if line.startswith(lastline):
                 break
             data += line
-    m = create_module("check_mk", data)
-    m.load_checks()
-    m.set_use_cachefile()
-    m.enforce_using_agent_cache()
-    m.read_config_files()
-
-def preload_checks():
+    m = create_module_from_memory("check_mk", data)
+    
+def preload_checks_threads():
+    from concurrent import futures
+    import multiprocessing
     workers = multiprocessing.cpu_count() * 2 + 1
     print("Loading checks with %d workers..." % workers)
     filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
@@ -77,12 +94,27 @@ def preload_checks():
     print("%d checks loaded." % len(filenames))
 
 
+def preload_checks_serial():
+    print("Loading check_mk module...")
+    filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
+    prep_and_load_check_mk()
+    print("Loading %d checks..." % len(filenames))
+    count=0
+    for f in filenames:
+        sys.stdout.write("%d/%d   \r" % (count, len(filenames)))
+        count+=1
+        prep_and_load_module(f)
+    print("%d checks loaded." % len(filenames))
+
+preload_checks = preload_checks_serial
+
+
 # NOTE(sileht): Copy of the __main__ of check_mk check
 def run_check(name, verbose=False):
     try:
         if verbose:
-            sys.modules[name].cmk.log.set_verbosity(verbosity=1)
-	sys.exit(sys.modules[name].runner())
+            cmk.log.set_verbosity(verbosity=1)
+        sys.exit(sys.modules[name].runner())
     except ImportError:
         sys.stdout.write("UNKNOWN - checks for %s is not loaded" % name)
         sys.exit(3)
@@ -107,7 +139,7 @@ def run_check(name, verbose=False):
 	sys.exit(3)
     finally:
         if name in sys.modules:
-            sys.modules[name].cmk.log.set_verbosity(verbosity=0)
+            cmk.log.set_verbosity(verbosity=0)
 
 
 class FakeStdout(object):
@@ -120,33 +152,40 @@ class FakeStdout(object):
 
 app = flask.Flask(__name__)
 
-@app.route("/check/<name>")
-def check(name):
+def do_run_check(name, verbose=False):
     name = get_modname(name)
     with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
-	try:
-            run_check(name)
-	except SystemExit, e:
-	    return "%s\n%s" % (e.code, out.data)
+        try:
+            run_check(name, verbose)
+        except SystemExit, e:
+            reload_module(name)
+            return "%s\n%s" % (e.code, out.data)
+
+
+@app.route("/check/<name>")
+def check(name):
+    return do_run_check(name)
 
 
 @app.route("/detail/<name>")
 def detail(name):
-    name = get_modname(name)
-    with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
-	try:
-            run_check(name, verbose=True)
-	except SystemExit, e:
-	    return "%s\n%s" % (e.code, out.data)
+    return do_run_check(name, verbose=True)
 
 
 @app.route("/inventory/<name>")
 def inventory(name):
     with mock.patch('check_mk.sys.stdout', new=FakeStdout()) as out:
 	try:
-            sys.modules["check_mk"].check_discovery(name)
+            m = sys.modules["check_mk"]
+            m.load_checks()
+            m.set_use_cachefile()
+            m.enforce_using_agent_cache()
+            m.read_config_files()
+            m.check_discovery(name)
 	except SystemExit, e:
+            reload_module("check_mk")
 	    return "%s\n%s" % (e.code, out.data)
 
 
 preload_checks()
+application = app
