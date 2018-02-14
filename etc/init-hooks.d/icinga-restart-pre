@@ -1,0 +1,4 @@
+#!/bin/bash
+
+~/etc/init.d/icinga stop
+~/etc/init.d/fastchecker restart

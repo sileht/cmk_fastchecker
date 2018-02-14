@@ -1,13 +1,12 @@
 #!/bin/bash
 
-max() {
-    printf "%s\n" "$@" | sort -g | grep -v -- '-' | tail -n1
-}
-min() {
-    printf "%s\n" "$@" | sort -g | grep -v -- '-' | head -n1
-}
+here=$(readlink -f $(dirname $0))
+cd $here
+
+. fastpinger_utils.sh
 
 SITENAME="$(id -un)"
+CONF="/omd/sites/$SITENAME/etc/fastchecker.conf"
 TMPDIR="/omd/sites/$SITENAME/tmp/fastchecker/hooks"
 CMK_FASTPINGER_DUMP="/omd/sites/$SITENAME/tmp/fastpinger/fastpinger.dump"
 mkdir -p $TMPDIR
@@ -17,14 +16,31 @@ mkfifo $NAMED_PIPE
 cleanup () { rm -f $NAMED_PIPE ; }
 trap cleanup EXIT
 
+legacy(){
+    mode=$1
+    host=$2
+    if [ "$mode" == "check" ] ; then
+	exec python ~/var/check_mk/precompiled/"$host"
+    elif [ "$mode" == "inventory" ] ; then
+	exec check_mk --cache --check-discovery "$host"
+    fi
+}
+
 mode=$1
 shift
 if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
     host="$1"
+    [ "$host" == "h7" ] && legacy $mode $host
+
     curl -s http://localhost:5001/$mode/$host > $NAMED_PIPE &
     { read RET ; cat ;} < $NAMED_PIPE
+
     if [[ -z "$RET" ]] || [[ "$RET" -gt 3 ]]; then
-        echo "fastchecker unreachable"
+        if [ "$FALLBACK_ON_ERROR" ]; then
+            legacy $mode $host
+        else
+            echo "fastchecker unreachable"
+        fi
     fi
 elif [ "$mode" == "ping" ]; then
     fdate=$(stat  -c %x $CMK_FASTPINGER_DUMP | sed 's/\..*//g')
@@ -60,36 +76,9 @@ elif [ "$mode" == "ping" ]; then
 
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
         sed -n "s/^$dest\s\s*:\s*//gp" $CMK_FASTPINGER_DUMP | grep -v "duplicate" > $NAMED_PIPE &
-	{ read p1 p2 p3 p4 p5 ; cat > /dev/null ; } < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
-        if [ "$p1" -a "$p2" -a "$p3" -a "$p4" -a "$p5" ]; then
-            loss=0
-            count=0
-            math=""
-            [ "$p1" == "-" ] && loss=$((loss + 20)) || { math="$math + $p1"; count=$((count + 1)); }
-            [ "$p2" == "-" ] && loss=$((loss + 20)) || { math="$math + $p2"; count=$((count + 1)); }
-            [ "$p3" == "-" ] && loss=$((loss + 20)) || { math="$math + $p3"; count=$((count + 1)); }
-            [ "$p4" == "-" ] && loss=$((loss + 20)) || { math="$math + $p4"; count=$((count + 1)); }
-            [ "$p5" == "-" ] && loss=$((loss + 20)) || { math="$math + $p5"; count=$((count + 1)); }
-            
-            if [ $count -gt 0 ]; then
-                    rt=$(echo "(0 $math) / $count * 1000" | bc -l | awk '{gsub(/\..*/, "", $1); print $1}')
-                    rt_display=$(echo "scale=2; (0 $math) / $count" | bc -l)
-                    rt_min=$(min $p1 $p2 $p3 $p4 $p5)
-                    rt_max=$(max $p1 $p2 $p3 $p4 $p5)
-            else
-                    rt=0 rt_display=0 rt_min=0 rt_max=0
-            fi
-            state="OK"
-            [ $loss -ge $loss_warn -o $rt -ge $rt_warn ] && state="WARNING"
-            [ $loss -ge $loss_crit -o $rt -ge $rt_crit ] && state="CRITICAL"
-
-            echo "$state - $dest : rta ${rt_display}ms, lost ${loss}% (fastpinger at $fdate)|rta=${rt_display}ms;${rt_warn};${rt_cirt};0; pl=${loss}%;${loss_warn};${loss_crit};; rtmax=${rt_max}ms;;;; rtmin=${rt_min}ms;;;;"
-            case $state in
-                OK) RET=0;;
-                WARNING) RET=1;;
-                CRITICAL) RET=2;;
-            esac
-        else
+	check_icmp_imitation $dest $rt_warn $rt_crit $loss_warn $loss_crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
+	RET=$?
+        if [ "$RET" == "3" ]; then
             exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -w "${warn}" -c "${crit}" "$dest"
         fi
     fi

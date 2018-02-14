@@ -5,6 +5,7 @@ set -o pipefail
 SITENAME=$(id -un)
 LOG_DIR="/omd/sites/${SITENAME}/var/log/fastpinger"
 TMP_DIR="/omd/sites/${SITENAME}/tmp/fastpinger"
+OUTFILE=$TMP_DIR/fastpinger.dump
 
 here=$(readlink -f $(dirname $0))
 cd $here
@@ -53,12 +54,14 @@ if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ 
 		fi
 	done
 	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
+	$here/fastpinger_nagios_gen_conf.sh
 fi
 
 log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
-outfile=$TMP_DIR/fastpinger.dump
 cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/ips.lst"
 log $cmd
-$cmd 2> ${outfile}.tmp
-mv -f ${outfile}.tmp ${outfile}
+$cmd 2> ${OUTFILE}.tmp
+mv -f ${OUTFILE}.tmp ${OUTFILE}
 log "Stop fping..."
+
+$here/fastpinger_nagios_send_status.sh

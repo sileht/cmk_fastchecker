@@ -18,7 +18,10 @@ export PIP_CONFIG_FILE=$here/pip.conf
 [ ! -d venv ] && virtualenv -vvv venv || true
 venv/bin/pip install -U -r requirements.txt
 
-echo "BASE_DIR=\"$here\"" > $SITE/etc/fastchecker.conf
+cat > $SITE/etc/fastchecker.conf <<EOF
+BASE_DIR="$here"
+FALLBACK_ON_ERROR=1
+EOF
 ln -sf $here/etc/init.d/fastchecker $SITE/etc/init.d/
 ln -sf $here/etc/init-hooks.d/icinga-restart-pre $SITE/etc/init-hooks.d
 ln -sf $here/etc/cron.d/fastpinger $SITE/etc/cron.d
