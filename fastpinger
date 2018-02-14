@@ -54,7 +54,7 @@ if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ 
 		fi
 	done
 	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
-	$here/fastpinger_nagios_gen_conf.sh
+	$here/fastpinger_setuper
 fi
 
 log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
@@ -63,5 +63,3 @@ log $cmd
 $cmd 2> ${OUTFILE}.tmp
 mv -f ${OUTFILE}.tmp ${OUTFILE}
 log "Stop fping..."
-
-$here/fastpinger_nagios_send_status.sh
