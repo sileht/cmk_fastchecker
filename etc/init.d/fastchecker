@@ -19,6 +19,9 @@ start_uwsgi() {
 	cd $BASE_DIR
 	unset LD_LIBRARY_PATH
 	source venv/bin/activate
+	worker=$(($(nproc) * 4 + 1))
+	threads=$(($((nproc)) * 4 + 1))
+	# --threads $threads \
 	uwsgi \
 		--master \
 		--http 127.0.0.1:5001 \
@@ -27,13 +30,16 @@ start_uwsgi() {
 		--thunder-lock \
 		--add-header "Connection: Close" \
 		--procname-prefix-spaced fastchecker \
+		--max-requests 100 \
 		--die-on-term \
-		--max-requests 20 \
-		--processes $(($(nproc) * 2 + 1)) \
+		--ignore-sigpipe \
+		--listen 2048 \
+		--processes $worker \
 		--pidfile2 $PIDFILE \
 		-H $BASE_DIR/venv \
 		$daemon \
 		--wsgi-file fastchecker.py \
+		--callable app
 
 }
 
