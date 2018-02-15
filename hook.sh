@@ -23,6 +23,9 @@ SITENAME="$(id -un)"
 CONF="/omd/sites/$SITENAME/etc/fastchecker.conf"
 TMPDIR="/omd/sites/$SITENAME/tmp/fastchecker/hooks"
 CMK_FASTPINGER_DUMP="/omd/sites/$SITENAME/tmp/fastpinger/fastpinger.dump"
+
+. $CONF
+
 mkdir -p $TMPDIR
 
 NAMED_PIPE=$(mktemp --dry-run $TMPDIR/pipe.XXXXXX)
