@@ -1,6 +1,30 @@
 #!/bin/bash
+#
+# Copyright (C) 2018 Mehdi Abaakouk <sileht@sileht.net>
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 set -o pipefail
+
+. /omd/sites/${SITENAME}/etc/fastchecker.conf
+
+if [ ! "$BASE_DIR" ]; then
+	echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"
+	exit 1
+fi
+unset LD_LIBRARY_PATH
+source $BASE_DIR/venv/bin/activate
 
 SITENAME=$(id -un)
 LOG_DIR="/omd/sites/${SITENAME}/var/log/fastpinger"
@@ -38,24 +62,24 @@ if ! mkdir $TMP_DIR/run 2>/dev/null ; then
 	exit 0
 fi
 
-if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
-	log "Start generating ips list..."
-	> $TMP_DIR/ips.lst.new
-	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' networks.lst | while read network garbage; do
-		is_ipv6=$(echo $network | grep '::')
-		if [ "$is_ipv6" ]; then
-			echo $network >> $TMP_DIR/ips.lst.new
-		else
-			prips $network | while read ip ; do
-				echo $ip >> $TMP_DIR/ips.lst.new
-				ipv6=$(get_ipv6 $ip)
-				[ "$ipv6" ] && echo $ipv6 >> $TMP_DIR/ips.lst.new
-			done
-		fi
-	done
-	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
-	$here/fastpinger_setuper
-fi
+#if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
+#	log "Start generating ips list..."
+#	> $TMP_DIR/ips.lst.new
+#	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' networks.lst | while read network garbage; do
+#		is_ipv6=$(echo $network | grep '::')
+#		if [ "$is_ipv6" ]; then
+#			echo $network >> $TMP_DIR/ips.lst.new
+#		else
+#			prips $network | while read ip ; do
+#				echo $ip >> $TMP_DIR/ips.lst.new
+#				ipv6=$(get_ipv6 $ip)
+#				[ "$ipv6" ] && echo $ipv6 >> $TMP_DIR/ips.lst.new
+#			done
+#		fi
+#	done
+#	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
+#	#$here/fastpinger_setuper
+#fi
 
 log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
 cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/ips.lst"
