@@ -58,9 +58,11 @@ with open(PROCESS_FILE if PROCESS_FILE else COMMAND_FILE, "w") as f:
         if info["loss"] >= 100:
             info["state"] = "CRITICAL"
             info["exit_code"] = 2
-        elif 0 < info["loss"] < 100:
-            info["state"] = "WARNING"
-            info["exit_code"] = 1
+
+        # We just want UP/DOWN for now,
+        #elif 0 < info["loss"] < 100:
+        #    info["state"] = "WARNING"
+        #    info["exit_code"] = 1
 
         info["output"] = "%(state)s - %(ip)s : rta %(rt)sms, lost %(loss)s%% (fastpinger at %(mdate)s)|rta=%(rt)sms;;;0; pl=%(loss)s%%;;;; rtmax=%(rt_max)sms;;;; rtmin=%(rt_min)sms;;;;" % info
 	f.write("[%(now)s] PROCESS_SERVICE_CHECK_RESULT;fping;PING %(ip)s;%(exit_code)s;%(output)s\n" % info)
