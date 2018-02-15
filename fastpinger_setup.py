@@ -56,24 +56,11 @@ def get_ipv6(ip):
 with open(CONFIG_PATH, "w") as f_nagios, open(NETWORK_PATH, "r") as f_networks, open("%s.tmp" % IPS_PATH, "w") as f_ips:
 
     f_nagios.write("""
-define host {
-  host_name                     fping
-  use                           check_mk_host
-  contact_groups                ircbot
-  max_check_attempts            1.0
-  retry_interval                1.0
-  check_interval                1.0
-  _FILENAME                     none
-  _TAGS                         fping
-  check_command                 check-mk-dummy
-}
-
 define service {
   name                          fping_service_passive
   use                           check_mk_passive_perf
   register                      0
   host_name                     fping
-  contact_groups                ircbot,ircbot-infra
   max_check_attempts            1.0
   retry_interval                1.0
   check_interval                1.0

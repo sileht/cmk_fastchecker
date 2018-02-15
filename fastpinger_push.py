@@ -53,12 +53,12 @@ with open(PROCESS_FILE if PROCESS_FILE else COMMAND_FILE, "w") as f:
             "rt": (sum(rts) / len(rts)) if rts else 0,
             "rt_min": min(rts) if rts else 0,
             "rt_max": max(rts) if rts else 0,
-            "loss": len(rts) * 100 / 5,
+            "loss": 100 - len(rts) * 100 / 5,
         }
-        if info["loss"] == 100:
+        if info["loss"] >= 100:
             info["state"] = "CRITICAL"
             info["exit_code"] = 2
-        elif 0 < info["loss"] <= 100:
+        elif 0 < info["loss"] < 100:
             info["state"] = "WARNING"
             info["exit_code"] = 1
 
