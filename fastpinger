@@ -17,13 +17,16 @@
 
 set -o pipefail
 
+DATE=$(date +%s)
 SITENAME=$(id -un)
 TMP_DIR="/omd/sites/${SITENAME}/tmp/fastpinger"
+VAR_DIR="/omd/sites/${SITENAME}/var/fastpinger"
 OUTFILE=$TMP_DIR/fastpinger.dump
+VARFILE=$TMP_DIR/fastpinger.dump.$DATE
 
 here=$(readlink -f $(dirname $0))
 cd $here
-mkdir -p $TMP_DIR
+mkdir -p $TMP_DIR $VAR_DIR
 
 [ "$1" == "-f" ] && FORCE=1 LOG=1
 [ "$1" == "-v" ] && LOG=1
@@ -48,4 +51,6 @@ cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/
 log $cmd
 $cmd 2> ${OUTFILE}.tmp
 mv -f ${OUTFILE}.tmp ${OUTFILE}
+cp -f ${OUTFILE} ${VAR_DIR}
+nohup gzip ${VAR_DIR} &> /dev/null &
 log "Stop fping..."
