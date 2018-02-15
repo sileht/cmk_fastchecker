@@ -22,7 +22,7 @@ SITENAME=$(id -un)
 TMP_DIR="/omd/sites/${SITENAME}/tmp/fastpinger"
 VAR_DIR="/omd/sites/${SITENAME}/var/fastpinger"
 OUTFILE=$TMP_DIR/fastpinger.dump
-VARFILE=$TMP_DIR/fastpinger.dump.$DATE
+VARFILE=$VAR_DIR/fastpinger.dump.$DATE
 
 here=$(readlink -f $(dirname $0))
 cd $here
@@ -51,6 +51,6 @@ cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/
 log $cmd
 $cmd 2> ${OUTFILE}.tmp
 mv -f ${OUTFILE}.tmp ${OUTFILE}
-cp -f ${OUTFILE} ${VAR_DIR}
-nohup gzip ${VAR_DIR} &> /dev/null &
+cp -f ${OUTFILE} ${VARFILE}
+nohup gzip ${VARFILE} &> /dev/null &
 log "Stop fping..."
