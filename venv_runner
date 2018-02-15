@@ -29,4 +29,4 @@ export BASE_DIR
 export FALLBACK_ON_ERROR
 unset LD_LIBRARY_PATH
 source $BASE_DIR/venv/bin/activate
-exec python $BASE_DIR/$0.py "$@"
+exec python $BASE_DIR/$(basename $0).py "$@"

@@ -21,9 +21,12 @@ from __future__ import print_function
 import cStringIO
 import contextlib
 import daiquiri
+from distutils import spawn
 import imp
 import logging
 import mock
+import monotonic
+import multiprocessing
 import os
 import pwd
 import sys
@@ -36,9 +39,10 @@ LOG = daiquiri.getLogger(__name__)
 
 SITENAME = pwd.getpwuid(os.getuid())[0]
 BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
-TMPPATH = "/omd/sites/%s/tmp/fastchecker/checks" % SITENAME
-LOGPATH = "/omd/sites/%s/var/log/fastchecker/fastchecker.log" % SITENAME
+TMPPATH = "/omd/sites/%s/tmp/fastchecker" % SITENAME
+LOGPATH = "/omd/sites/%s/var/log/fastchecker.log" % SITENAME
 CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
+PIDFILE = "/omd/sites/%s/tmp/fastchecker.pid" % SITENAME
 
 try:
     os.makedirs(TMPPATH)
@@ -48,7 +52,6 @@ except OSError:
 daiquiri.setup(
     outputs=[
         daiquiri.output.STDERR,
-#        daiquiri.output.File(filename=LOGPATH),
     ]
 )
 
@@ -102,23 +105,7 @@ def prep_and_load_check_mk():
             m.enforce_using_agent_cache()
             m.read_config_files()
 
-def preload_checks_threads():
-    from concurrent import futures
-    import multiprocessing
-    workers = multiprocessing.cpu_count() * 2 + 1
-    LOG.info("Loading checks with %d workers..." % workers)
-    filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
-    LOG.info("Loading %d checks..." % len(filenames))
-    with futures.ThreadPoolExecutor(max_workers=workers) as e:
-        fs = [e.submit(prep_and_load_check_mk)]
-        fs.extend([e.submit(prep_and_load_module, f)
-                   for f in filenames])
-        for f in futures.as_completed(fs):
-            f.result()
-    LOG.info("%d checks loaded." % len(filenames))
-
-
-def preload_checks_serial():
+def preload_checks():
     LOG.info("Loading check_mk module...")
     watch = StopWatch()
     filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
@@ -132,9 +119,6 @@ def preload_checks_serial():
         sys.stdout.flush()
     LOG.info("%d/%d checks loaded in %s." % (count, len(filenames),
                                              watch.elapsed()))
-
-preload_checks = preload_checks_serial
-
 
 # NOTE(sileht): Copy of the __main__ of check_mk check
 def run_check(name, verbose=False):
@@ -185,28 +169,63 @@ def do_run_check(name, verbose=False):
     except SystemExit, e:
         return "%s\n%s" % (e.code, out.data)
     finally:
-        reload(sys.modules[name])
+        if name is sys.modules:
+            reload(sys.modules[name])
+        else:
+            LOG.error("fail to reload module %s: %s" % (name, sys.modules.keys()))
 
 
-app = flask.Flask(__name__)
+
+def wsgi():
+    preload_checks()
+
+    app = flask.Flask(__name__)
 
 
-@app.route("/check/<name>")
-def check(name):
-    return do_run_check(name)
+    @app.route("/check/<name>")
+    def check(name):
+        return do_run_check(name)
 
 
-@app.route("/detail/<name>")
-def detail(name):
-    return do_run_check(name, verbose=True)
+    @app.route("/detail/<name>")
+    def detail(name):
+        return do_run_check(name, verbose=True)
 
 
-@app.route("/inventory/<name>")
-def inventory(name):
-    try:
-        with mock.patch('check_mk.sys.stdout', new=FakeStdout()) as out:
-            sys.modules["check_mk"].check_discovery(name)
-    except SystemExit, e:
-        return "%s\n%s" % (e.code, out.data)
+    @app.route("/inventory/<name>")
+    def inventory(name):
+        try:
+            with mock.patch('check_mk.sys.stdout', new=FakeStdout()) as out:
+                sys.modules["check_mk"].check_discovery(name)
+        except SystemExit, e:
+            return "%s\n%s" % (e.code, out.data)
 
-preload_checks()
+    return app
+
+
+def main():
+    args = [
+       "--master",
+       "--http", "127.0.0.1:5001",
+       "--need-app",
+       "--enable-threads",
+       "--thunder-lock",
+       "--add-header", "Connection: Close",
+       "--procname-prefix-spaced", "fastchecker",
+       "--max-requests", "100",
+       "--die-on-term",
+       "--ignore-sigpipe",
+       "--listen", "2048",
+       "--processes", str(multiprocessing.cpu_count() * 2 + 1),
+       "--pidfile2", PIDFILE,
+       "--wsgi-file", __file__,
+       "--daemonize2", LOGPATH,
+    ]
+    uwsgi = spawn.find_executable("uwsgi")
+    os.execl(uwsgi, uwsgi, *args)
+
+
+if __name__ == "__main__":
+    main()
+else:
+    application = wsgi()

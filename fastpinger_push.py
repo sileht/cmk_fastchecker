@@ -34,32 +34,31 @@ PROCESS_FILE = "/omd/sites/%s/tmp/fastpinger/nagios_processfile.%s.cmd" % (SITEN
 PROCESS_FILE = None
 
 with open(FASTPINGER_DUMP, "r") as f:
-    lines = list(f.readlines())
+    lines = list(l for l in f.readlines() if "duplicate" not in l and l.split(".")[0] not in ["192", "172"])
 
 total = len(lines)
 count = 0
 with open(PROCESS_FILE if PROCESS_FILE else COMMAND_FILE, "w") as f:
+    print("Sending data in %s" % f.name)
     for line in lines:
-        if "duplicate" in line:
-            continue
         raw = line.split()
         ip = raw[0]
         rts = list(map(float, filter(lambda rt: rt != "-", raw[2:])))
         info = {
             "ip": ip,
             "state": "OK",
+            "exit_code": 0,
             "mdate": MDATE,
             "now": NOW,
             "rt": (sum(rts) / len(rts)) if rts else 0,
             "rt_min": min(rts) if rts else 0,
             "rt_max": max(rts) if rts else 0,
             "loss": len(rts) * 100 / 5,
-            "exit_code": 0,
         }
         if info["loss"] == 100:
             info["state"] = "CRITICAL"
             info["exit_code"] = 2
-        elif info["loss"] != 100:
+        elif 0 < info["loss"] <= 100:
             info["state"] = "WARNING"
             info["exit_code"] = 1
 

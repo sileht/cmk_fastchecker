@@ -25,27 +25,6 @@ import os
 import sys
 import time
 
-
-#if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
-#	log "Start generating ips list..."
-#	> $TMP_DIR/ips.lst.new
-#	grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' networks.lst | while read network garbage; do
-#		is_ipv6=$(echo $network | grep '::')
-#		if [ "$is_ipv6" ]; then
-#			echo $network >> $TMP_DIR/ips.lst.new
-#		else
-#			prips $network | while read ip ; do
-#				echo $ip >> $TMP_DIR/ips.lst.new
-#				ipv6=$(get_ipv6 $ip)
-#				[ "$ipv6" ] && echo $ipv6 >> $TMP_DIR/ips.lst.new
-#			done
-#		fi
-#	done
-#	mv -f $TMP_DIR/ips.lst.new $TMP_DIR/ips.lst
-#	#$here/fastpinger_setuper
-#fi
-
-
 SITENAME = pwd.getpwuid(os.getuid())[0]
 IPS_PATH = "/omd/sites/%s/tmp/fastpinger/ips.lst" % SITENAME
 CONFIG_PATH="/omd/sites/%s/etc/nagios/conf.d/fping_objects.cfg" % SITENAME
@@ -58,11 +37,27 @@ define service {
 }
 """
 
+
+map_ipv4v6 = {
+    '91.224.148': 80,
+    '91.224.149': 81,
+    '89.234.156': 83,
+    '89.234.157': 84,
+}
+def get_ipv6(ip):
+    if "::" in ip:
+        return
+    for prefix in map_ipv4v6:
+        if ip.startswith(prefix):
+            digit = hex(int(ip.split(".")[-1]))[2:]
+            net = map_ipv4v6[prefix]
+            return "2a03:7220:80%s:%s00::1" % (net, digit)
+
 with open(CONFIG_PATH, "w") as f_nagios, open(NETWORK_PATH, "r") as f_networks, open("%s.tmp" % IPS_PATH, "w") as f_ips:
 
     f_nagios.write("""
 define host {
-  name                          fping
+  host_name                     fping
   use                           check_mk_host
   contact_groups                ircbot
   max_check_attempts            1.0
@@ -87,14 +82,23 @@ define service {
 """)
 
     def write_both(ip):
+        ip = str(ip) 
         f_ips.write("%s\n" % ip)
-        f_nagios.write(TEMPLATE % ip)
+        if ip.split(".")[0] not in ["192", "172"]:
+            f_nagios.write(TEMPLATE % ip)
+
+        ipv6 = get_ipv6(ip)
+        if ipv6:
+            f_ips.write("%s\n" % ipv6)
+            f_nagios.write(TEMPLATE % ipv6)
+        return [ip, ipv6]
 
     nets = filter(lambda l: l and not l.startswith("#"),
             itertools.imap(lambda l: l.split("#")[0].strip(), 
                 f_networks.readlines()))
     ips = itertools.chain(*itertools.imap(netaddr.IPNetwork, nets))
-    map(write_both, ips)
+    ips = list(itertools.chain(*map(write_both, ips)))
+    print("%d ips generated." % len(ips))
 
 try:
     os.remove(IPS_PATH)

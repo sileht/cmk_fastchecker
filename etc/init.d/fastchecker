@@ -9,42 +9,10 @@ if [ ! "$BASE_DIR" ]; then
 	echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"
 	exit 1
 fi
-LOG_DIR="/omd/sites/${SITENAME}/var/log/fastchecker"
-TMP_DIR="/omd/sites/${SITENAME}/tmp/fastchecker/uwsgi"
-PIDFILE=$TMP_DIR/fastchecker.pid
-
-
-start_uwsgi() {
-	[ "$1" == "test" ] || daemon="--daemonize2 $LOG_DIR/error.log"
-	cd $BASE_DIR
-	unset LD_LIBRARY_PATH
-	source venv/bin/activate
-	worker=$(($(nproc) * 4 + 1))
-	threads=$(($((nproc)) * 4 + 1))
-	# --threads $threads \
-	uwsgi \
-		--master \
-		--http 127.0.0.1:5001 \
-		--need-app \
-		--enable-threads \
-		--thunder-lock \
-		--add-header "Connection: Close" \
-		--procname-prefix-spaced fastchecker \
-		--max-requests 100 \
-		--die-on-term \
-		--ignore-sigpipe \
-		--listen 2048 \
-		--processes $worker \
-		--pidfile2 $PIDFILE \
-		-H $BASE_DIR/venv \
-		$daemon \
-		--wsgi-file fastchecker.py \
-		--callable app
-
-}
+PIDFILE="/omd/sites/${SITENAME}/tmp/fastchecker.pid"
 
 case "$1" in
-    start|test)
+    start)
  	echo -n 'Starting fastchecker...'
 	if [ -e "$PIDFILE" ] ; then
 	    PID=$(cat $PIDFILE)
@@ -57,7 +25,7 @@ case "$1" in
 	fi
 
 	# make sure, directories are there (ramdisk!)
-	mkdir -p $TMP_DIR $LOG_DIR && start_uwsgi "$1" && echo OK || echo Error
+	$BASE_DIR/fastchecker && echo OK || echo Error
     ;;
     stop)
 	echo -n 'Stopping fastchecker...'

@@ -86,19 +86,19 @@ checks by:
 	define command {
 	  command_name  check-mk-ping
 	  # command_line  $USER4$/lib/nagios/plugins/check_icmp $ARG1$
-	  command_line  $USER4$/etc/check_mk/cmk_fastchecker/hook.sh ping $ARG1$
+	  command_line  $USER4$/etc/check_mk/fastchecker/hook.sh ping $ARG1$
 	}
 
 	# Host check commands
 	define command {
 	  command_name check-mk-host-ping
 	  # command_line $USER4$/lib/nagios/plugins/check_icmp $ARG1$ $HOSTADDRESS$
-	  command_line  $USER4$/etc/check_mk/cmk_fastchecker/hook.sh ping $ARG1$ $HOSTADDRESS$
+	  command_line  $USER4$/etc/check_mk/fastchecker/hook.sh ping $ARG1$ $HOSTADDRESS$
 	}
 
 	define command {
 	  command_name check-mk-host-ping-cluster
-	  command_line  $USER4$/etc/check_mk/cmk_fastchecker/hook.sh ping -m 1 $ARG1$ $_HOSTNODEIPS$
+	  command_line  $USER4$/etc/check_mk/fastchecker/hook.sh ping -m 1 $ARG1$ $_HOSTNODEIPS$
 	  # command_line $USER4$/lib/nagios/plugins/check_icmp -m 1 $ARG1$ $_HOSTNODEIPS$
 	}
 

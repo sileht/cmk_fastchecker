@@ -19,8 +19,6 @@
 here=$(readlink -f $(dirname $0))
 cd $here
 
-. fastpinger_utils.sh
-
 SITENAME="$(id -un)"
 CONF="/omd/sites/$SITENAME/etc/fastchecker.conf"
 TMPDIR="/omd/sites/$SITENAME/tmp/fastchecker/hooks"
