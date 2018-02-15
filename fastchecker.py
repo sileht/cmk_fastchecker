@@ -168,12 +168,6 @@ def do_run_check(name, verbose=False):
             run_check(name, verbose)
     except SystemExit, e:
         return "%s\n%s" % (e.code, out.data)
-    finally:
-        if name is sys.modules:
-            reload(sys.modules[name])
-        else:
-            LOG.error("fail to reload module %s: %s" % (name, sys.modules.keys()))
-
 
 
 def wsgi():
