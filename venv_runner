@@ -25,8 +25,6 @@ if [ ! "$BASE_DIR" ]; then
 	exit 1
 fi
 
-export BASE_DIR
-export FALLBACK_ON_ERROR
 unset LD_LIBRARY_PATH
 source $BASE_DIR/venv/bin/activate
 exec python $BASE_DIR/$(basename $0).py "$@"

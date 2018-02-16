@@ -42,7 +42,7 @@ BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
 TMPPATH = "/omd/sites/%s/tmp/fastchecker" % SITENAME
 LOGPATH = "/omd/sites/%s/var/log/fastchecker.log" % SITENAME
 CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
-PIDFILE = "/omd/sites/%s/tmp/fastchecker.pid" % SITENAME
+PIDFILE = os.environ['PIDFILE']
 
 try:
     os.makedirs(TMPPATH)
@@ -213,6 +213,7 @@ def main():
        "--processes", str(multiprocessing.cpu_count() * 2 + 1),
        "--pidfile2", PIDFILE,
        "--wsgi-file", __file__,
+       "--harakiri", "120",
        "--daemonize2", LOGPATH,
     ]
     uwsgi = spawn.find_executable("uwsgi")

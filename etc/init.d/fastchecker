@@ -5,11 +5,10 @@ SITENAME=$(id -un)
 . /omd/sites/${SITENAME}/etc/omd/site.conf
 . /omd/sites/${SITENAME}/etc/fastchecker.conf
 
-if [ ! "$BASE_DIR" ]; then
-	echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"
+if [ ! "$BASE_DIR" -o ! "$PIDFILE" ]; then
+	echo  "BASE_DIR or PIDFILE is unset, please fill ~/etc/fastchecker.conf"
 	exit 1
 fi
-PIDFILE="/omd/sites/${SITENAME}/tmp/fastchecker.pid"
 
 case "$1" in
     start)

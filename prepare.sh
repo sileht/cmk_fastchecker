@@ -19,9 +19,13 @@ export PIP_CONFIG_FILE=$here/pip.conf
 venv/bin/pip install -U -r requirements.txt
 
 cat > $SITE/etc/fastchecker.conf <<EOF
-BASE_DIR="$here"
-FALLBACK_ON_ERROR=1
+export BASE_DIR="$here"
+export FALLBACK_ON_ERROR=1
+export PIDFILE="$SITE/tmp/fastchecker/fastchecker.pid"
 EOF
+
+mkdir -p $SITE/tmp/fastchecker
+
 ln -sf $here/etc/init.d/fastchecker $SITE/etc/init.d/
 ln -sf $here/etc/init-hooks.d/icinga-restart-pre $SITE/etc/init-hooks.d
 ln -sf $here/etc/cron.d/fastpinger $SITE/etc/cron.d
