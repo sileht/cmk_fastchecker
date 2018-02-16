@@ -37,17 +37,13 @@ import flask
 
 LOG = daiquiri.getLogger(__name__)
 
-SITENAME = pwd.getpwuid(os.getuid())[0]
-BASEPATH = "/omd/sites/%s/var/check_mk/precompiled" % SITENAME
-TMPPATH = "/omd/sites/%s/tmp/fastchecker" % SITENAME
-LOGPATH = "/omd/sites/%s/var/log/fastchecker.log" % SITENAME
-CMKPATH = "/omd/sites/%s/share/check_mk/modules/check_mk.py" % SITENAME
 PIDFILE = os.environ['PIDFILE']
 
-try:
-    os.makedirs(TMPPATH)
-except OSError:
-    pass
+SITENAME = os.environ['SITENAME']
+TMPPATH = os.environ['FASTCHECKER_TMPPATH']
+LOGPATH = os.environ['FASTCHECKER_LOGPATH']
+CHECKSPATH = os.environ['FASTCHECKER_CHECKSPATH']
+CMKMODPATH = os.environ['FASTCHECKER_CMKMODPATH']
 
 daiquiri.setup(
     outputs=[
@@ -72,7 +68,7 @@ def get_modname(name):
 def prep_and_load_module(f):
     name = get_modname(f[:-3])
     with open("%s/%s.py" % (TMPPATH, name), "w+") as fout:
-        with open("%s/%s" % (BASEPATH, f)) as fin:
+        with open("%s/%s" % (CHECKSPATH, f)) as fin:
             for line in fin.readlines():
                 if line.startswith("register_sigint_handler()"):
                     continue
@@ -92,7 +88,7 @@ def prep_and_load_module(f):
 def prep_and_load_check_mk():
     lastline = "register_sigint_handler"
     with open("%s/%s.py" % (TMPPATH, "check_mk"), "w+") as fout:
-        with open(CMKPATH, "r") as fin:
+        with open(CMKMODPATH, "r") as fin:
             for line in fin.readlines():
                 if line.startswith(lastline):
                     break
@@ -108,7 +104,7 @@ def prep_and_load_check_mk():
 def preload_checks():
     LOG.info("Loading check_mk module...")
     watch = StopWatch()
-    filenames = [f for f in os.listdir(BASEPATH) if f.endswith(".py")]
+    filenames = [f for f in os.listdir(CHECKSPATH) if f.endswith(".py")]
     prep_and_load_check_mk()
     LOG.info("Loading %d checks..." % len(filenames))
     count=0

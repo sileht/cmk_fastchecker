@@ -18,20 +18,17 @@
 
 import itertools
 from datetime import datetime
-import pwd
 import os
 import sys
 import time
 
-SITENAME = pwd.getpwuid(os.getuid())[0]
-COMMAND_FILE = "/omd/sites/%s/tmp/run/icinga.cmd" % SITENAME
-FASTPINGER_DUMP = "/omd/sites/%s/tmp/fastpinger/fastpinger.dump" % SITENAME
-
 NOW = time.strftime('%s')
+COMMAND_FILE = os.environ['FASTPINGER_COMMANDFILE']
+FASTPINGER_DUMP = os.environ['FASTPINGER_DUMP']
+PROCESS_FILE = "%s/nagios_processfile.%s.cmd" % (os.environ['FASTPINGER_TMPPATH'], NOW)
 MDATE = datetime.fromtimestamp(os.path.getmtime(FASTPINGER_DUMP)).isoformat()
 
-PROCESS_FILE = "/omd/sites/%s/tmp/fastpinger/nagios_processfile.%s.cmd" % (SITENAME, NOW)
-PROCESS_FILE = None
+# PROCESS_FILE = None
 
 with open(FASTPINGER_DUMP, "r") as f:
     lines = list(l for l in f.readlines() if "duplicate" not in l and l.split(".")[0] not in ["192", "172"])
@@ -73,4 +70,4 @@ print("")
 
 if PROCESS_FILE:
     with open(COMMAND_FILE, "w") as f:
-        f.write("[%s] PROCESS_FILE;%s;1\n" % (NOW, PROCESSFILE))
+        f.write("[%s] PROCESS_FILE;%s;1\n" % (NOW, PROCESS_FILE))

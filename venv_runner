@@ -16,14 +16,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-SITENAME=$(id -un)
-
+export SITENAME=$(id -un)
 . /omd/sites/${SITENAME}/etc/fastchecker.conf
-
-if [ ! "$BASE_DIR" ]; then
-	echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"
-	exit 1
-fi
+[ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
+. $BASE_DIR/paths.conf
 
 unset LD_LIBRARY_PATH
 source $BASE_DIR/venv/bin/activate

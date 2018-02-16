@@ -15,20 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+export SITENAME=$(id -un)
+. /omd/sites/${SITENAME}/etc/fastchecker.conf
+[ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
+. $BASE_DIR/paths.conf
+cd $BASE_DIR
 
-here=$(readlink -f $(dirname $0))
-cd $here
-
-SITENAME="$(id -un)"
-CONF="/omd/sites/$SITENAME/etc/fastchecker.conf"
-TMPDIR="/omd/sites/$SITENAME/tmp/fastchecker/hooks"
-CMK_FASTPINGER_DUMP="/omd/sites/$SITENAME/tmp/fastpinger/fastpinger.dump"
-
-. $CONF
-
-mkdir -p $TMPDIR
-
-NAMED_PIPE=$(mktemp --dry-run $TMPDIR/pipe.XXXXXX)
+NAMED_PIPE=$(mktemp --dry-run $FASTCHECKER_TMPPATH/hook_pipe.XXXXXX)
 mkfifo $NAMED_PIPE
 cleanup () { rm -f $NAMED_PIPE ; }
 trap cleanup EXIT
@@ -92,12 +85,13 @@ check_icmp_imitation () {
     fi
 }
 
-
-
 mode=$1
 shift
 if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
     host="$1"
+    # h7 checks take 3-4g of RAM, obviously a check_mk bug
+    # due to the number of routes gathered
+    # TODO(sileht): Move this in conf
     [ "$host" == "h7" ] && legacy $mode $host
 
     curl -s http://localhost:5001/$mode/$host > $NAMED_PIPE &
@@ -111,7 +105,9 @@ if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
         fi
     fi
 elif [ "$mode" == "ping" ]; then
-    fdate=$(stat  -c %x $CMK_FASTPINGER_DUMP | sed 's/\..*//g')
+    # Python version in fastpinger_push is slower, just due to the Python VM
+    # So keep bash for this
+    fdate=$(stat  -c %x $FASTPINGER_DUMP | sed 's/\..*//g')
 
     OPTS=`getopt -o 46w:c:n:i:I:m:l:t:b:H: -n 'parse-options' -- "$@"`
     eval set -- "$OPTS"
@@ -143,7 +139,7 @@ elif [ "$mode" == "ping" ]; then
         loss_crit=$(echo $crit | awk -F, '{gsub(/\..*/, "", $2); print $2}')
 
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
-        sed -n "s/^$dest\s\s*:\s*//gp" $CMK_FASTPINGER_DUMP | grep -v "duplicate" > $NAMED_PIPE &
+        sed -n "s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP | grep -v "duplicate" > $NAMED_PIPE &
 	check_icmp_imitation $dest $rt_warn $rt_crit $loss_warn $loss_crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
 	RET=$?
         if [ "$RET" == "3" ]; then

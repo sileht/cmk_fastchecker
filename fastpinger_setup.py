@@ -19,16 +19,14 @@ from __future__ import with_statement
 
 from datetime import datetime
 import itertools
-import pwd
 import netaddr
 import os
 import sys
 import time
 
-SITENAME = pwd.getpwuid(os.getuid())[0]
-IPS_PATH = "/omd/sites/%s/tmp/fastpinger/ips.lst" % SITENAME
-CONFIG_PATH="/omd/sites/%s/etc/nagios/conf.d/fping_objects.cfg" % SITENAME
-NETWORK_PATH = "%s/networks.lst" % os.environ["BASE_DIR"]
+IPS_PATH = os.environ['FASTPINGER_IPSPATH']
+NAGIOS_CONFIG_PATH = os.environ['FASTPINGER_NAGIOS_CONFIG']
+NETWORK_PATH = os.environ['FASTPINGER_NETWORKSPATH']
 
 TEMPLATE="""
 define service {
@@ -37,13 +35,13 @@ define service {
 }
 """
 
-
 map_ipv4v6 = {
     '91.224.148': 80,
     '91.224.149': 81,
     '89.234.156': 83,
     '89.234.157': 84,
 }
+
 def get_ipv6(ip):
     if "::" in ip:
         return
@@ -53,7 +51,7 @@ def get_ipv6(ip):
             net = map_ipv4v6[prefix]
             return "2a03:7220:80%s:%s00::1" % (net, digit)
 
-with open(CONFIG_PATH, "w") as f_nagios, open(NETWORK_PATH, "r") as f_networks, open("%s.tmp" % IPS_PATH, "w") as f_ips:
+with open(NAGIOS_CONFIG_PATH, "w") as f_nagios, open(NETWORK_PATH, "r") as f_networks, open("%s.tmp" % IPS_PATH, "w") as f_ips:
 
     f_nagios.write("""
 define service {

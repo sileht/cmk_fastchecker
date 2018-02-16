@@ -15,42 +15,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-set -o pipefail
 
-DATE=$(date +%s)
-SITENAME=$(id -un)
-TMP_DIR="/omd/sites/${SITENAME}/tmp/fastpinger"
-VAR_DIR="/omd/sites/${SITENAME}/var/fastpinger"
-OUTFILE=$TMP_DIR/fastpinger.dump
-VARFILE=$VAR_DIR/fastpinger.dump.$DATE
+DATE=$(date '+%Y%m%d-%H%M')
 
-here=$(readlink -f $(dirname $0))
-cd $here
-mkdir -p $TMP_DIR $VAR_DIR
+export SITENAME=$(id -un)
+. /omd/sites/${SITENAME}/etc/fastchecker.conf
+[ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
+. $BASE_DIR/paths.conf
 
-[ "$1" == "-f" ] && FORCE=1 LOG=1
-[ "$1" == "-v" ] && LOG=1
-
-log() { [ "$LOG" ] && echo "$(date --rfc-3339=seconds) : $@"; }
-
-cleanup() {
-	rmdir $TMP_DIR/run 2>/dev/null
-}
+cleanup() { rmdir $FASTPINGER_TMPPATH/run 2>/dev/null ; }
 trap cleanup EXIT
+[ ! mkdir $FASTPINGER_TMPPATH/run 2>/dev/null ] && { echo "fastpinger is already running" ; exit 0 ; }
 
-if ! mkdir $TMP_DIR/run 2>/dev/null ; then
-	log "fastpinger is already running"
-	exit 0
+if [[ ! -e ${FASTPINGER_IPSPATH} ]] || [[ ${FASTPINGER_NETWORKSPATH} -nt ${FASTPINGER_IPSPATH} ]]; then
+	$BASE_DIR/fastpinger_setup
 fi
 
-if [[ ! -e $TMP_DIR/ips.lst ]] || [[ networks.lst -nt $TMP_DIR/ips.lst ]] || [[ -n "$FORCE" ]]; then
-	$here/fastpinger_setup
+echo "Start fping $(cat ${FASTPINGER_IPSPATH} | wc -l) hosts..."
+cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f ${FASTPINGER_IPSPATH}"
+echo $cmd
+$cmd 2> ${FASTPINGER_DUMP}.tmp
+mv -f ${FASTPINGER_DUMP}.tmp ${FASTPINGER_DUMP}
+
+FASTPINGER_ARCHIVE=$FASTPINGER_ARCHIVE_PREFIX.$DATE
+if [ ! -f ${FASTPINGER_ARCHIVE} ] ; then
+	cp -f ${FASTPINGER_DUMP} ${FASTPINGER_ARCHIVE}
+	nohup xz -9 ${FASTPINGER_ARCHIVE} &> /dev/null &
 fi
-log "Start fping $(cat $TMP_DIR/ips.lst | wc -l) hosts..."
-cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f $TMP_DIR/ips.lst"
-log $cmd
-$cmd 2> ${OUTFILE}.tmp
-mv -f ${OUTFILE}.tmp ${OUTFILE}
-cp -f ${OUTFILE} ${VARFILE}
-nohup gzip ${VARFILE} &> /dev/null &
-log "Stop fping..."
+echo "Stop fping..."
