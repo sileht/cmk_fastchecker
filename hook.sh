@@ -28,8 +28,6 @@ export SITENAME=$(id -un)
 . $BASE_DIR/paths.conf
 cd $BASE_DIR
 
-NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook-pipe.XXXXXX)
-mkfifo $NAMED_PIPE
 legacy(){
     mode=$1
     host=$2
@@ -65,7 +63,7 @@ check_icmp_imitation () {
                 loss=$((loss + 20))
             else
                 rt=${rt//./}0  # fping always have two digits after the .
-                rt=${rt#0}
+                rt=${rt#0}; rt=${rt#0}; rt=${rt#0}; rt=${rt#0}; rt=${rt#0} # Remove leading 0
                 sum=$(($sum + $rt))
                 count=$((count + 1))
                 rt_mean=$(($sum / $count))
@@ -91,6 +89,9 @@ check_icmp_imitation () {
         *) return 3;;
     esac
 }
+
+NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook-pipe.XXXXXX)
+mkfifo $NAMED_PIPE
 
 mode=$1
 shift
@@ -141,7 +142,7 @@ elif [ "$mode" == "ping" ]; then
     else
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
         sed -n "/duplicate/! s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP > $NAMED_PIPE &
-        check_icmp_imitation $dest $warn $crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
+        check_icmp_imitation $dest $warn $crit "$fdate" < $NAMED_PIPE
         RET=$?
         if [ "$RET" == "3" ]; then
             exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -w "${warn}" -c "${crit}" "$dest"
