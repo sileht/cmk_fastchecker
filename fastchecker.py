@@ -191,6 +191,7 @@ def wsgi():
             return "3\n%s is not loaded in fastchecker" % name
         try:
             with mock.patch('check_mk.sys.stdout', new=FakeStdout()) as out:
+                sys.modules["check_mk"].cleanup_globals()
                 sys.modules["check_mk"].check_discovery(hostname)
         except SystemExit, e:
             return "%s\n%s" % (e.code, out.data)
