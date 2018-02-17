@@ -15,6 +15,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+RET=3
+cleanup () { 
+	[ "$NAMED_PIPE" ] && rm -f $NAMED_PIPE
+	exit $RET
+}
+trap cleanup EXIT
+
 export SITENAME=$(id -un)
 . /omd/sites/${SITENAME}/etc/fastchecker.conf
 [ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
@@ -23,9 +30,6 @@ cd $BASE_DIR
 
 NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook_pipe.XXXXXX)
 mkfifo $NAMED_PIPE
-cleanup () { rm -f $NAMED_PIPE ; }
-trap cleanup EXIT
-
 legacy(){
     mode=$1
     host=$2
@@ -63,7 +67,8 @@ check_icmp_imitation () {
         [ "$p5" == "-" ] && loss=$((loss + 20)) || { math="$math + $p5"; count=$((count + 1)); }
         
         if [ $count -gt 0 ]; then
-                rt=$(echo "(0 $math) / $count * 1000" | bc -l | awk '{gsub(/\..*/, "", $1); print $1}')
+		rt=$(echo "(0 $math) / $count * 1000" | bc -l)
+	        rt=${rt%%.*}
                 rt_display=$(echo "scale=2; (0 $math) / $count" | bc -l)
                 rt_min=$(min $p1 $p2 $p3 $p4 $p5)
                 rt_max=$(max $p1 $p2 $p3 $p4 $p5)
@@ -94,7 +99,7 @@ if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
     # TODO(sileht): Move this in conf
     [ "$host" == "h7" ] && legacy $mode $host
 
-    curl -s http://localhost:5001/$mode/$host > $NAMED_PIPE &
+    curl -f -s http://localhost:5001/$mode/$host > $NAMED_PIPE &
     { read RET ; cat ;} < $NAMED_PIPE
 
     if [[ -z "$RET" ]] || [[ "$RET" -gt 3 ]]; then
@@ -110,8 +115,7 @@ elif [ "$mode" == "ping" ]; then
     fdate=$(stat  -c %x $FASTPINGER_DUMP | sed 's/\..*//g')
 
     OPTS=`getopt -o 46w:c:n:i:I:m:l:t:b:H: -n 'parse-options' -- "$@"`
-    eval set -- "$OPTS"
-    ip_familly=4
+    
     warn="200,40"
     crit="500,80"
     while true; do
@@ -133,13 +137,13 @@ elif [ "$mode" == "ping" ]; then
         exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -m $multi -w "${warn}" -c "${crit}" "$dest"
     else
         # Bash need integer
-        rt_warn=$(echo $warn | awk -F, '{gsub(/\..*/, "", $1); print $1"000"}')
-        rt_crit=$(echo $crit | awk -F, '{gsub(/\..*/, "", $1); print $1"000"}')
-        loss_warn=$(echo $warn | awk -F, '{gsub(/\..*/, "", $2); print $2}')
-        loss_crit=$(echo $crit | awk -F, '{gsub(/\..*/, "", $2); print $2}')
+        rt_warn="${warn%%.*}000"
+        rt_crit="${crit%%.*}000"
+	loss_warn=${warn##*,}; loss_warn=${loss_warn%%.*}
+	loss_crit=${crit##*,}; loss_crit=${loss_crit%%.*}
 
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
-        sed -n "s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP | grep -v "duplicate" > $NAMED_PIPE &
+        sed -n "/duplicate/! s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP > $NAMED_PIPE &
 	check_icmp_imitation $dest $rt_warn $rt_crit $loss_warn $loss_crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
 	RET=$?
         if [ "$RET" == "3" ]; then
@@ -149,5 +153,4 @@ elif [ "$mode" == "ping" ]; then
 else
     echo "fastchecker hook.sh called with invalid mode: $mode"
 fi
-[ ! "$RET" ] && RET=3
-exit $RET
+
