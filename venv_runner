@@ -21,6 +21,9 @@ export SITENAME=$(id -un)
 [ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
 . $BASE_DIR/paths.conf
 
+[ ! -d $FASTCHECKER_TMPPATH ] && mkdir -p $FASTCHECKER_TMPPATH
+[ ! -d $FASTPINGER_TMPPATH ] && mkdir -p $FASTPINGER_TMPPATH
+
 unset LD_LIBRARY_PATH
 source $BASE_DIR/venv/bin/activate
 exec python $BASE_DIR/$(basename $0).py "$@"
