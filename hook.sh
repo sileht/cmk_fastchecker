@@ -17,8 +17,8 @@
 
 RET=3
 cleanup () { 
-	[ "$NAMED_PIPE" ] && rm -f $NAMED_PIPE
-	exit $RET
+        [ "$NAMED_PIPE" ] && rm -f $NAMED_PIPE
+        exit $RET
 }
 trap cleanup EXIT
 
@@ -34,60 +34,62 @@ legacy(){
     mode=$1
     host=$2
     if [ "$mode" == "check" ] ; then
-	exec python ~/var/check_mk/precompiled/"$host"
+        exec python ~/var/check_mk/precompiled/"$host"
     elif [ "$mode" == "inventory" ] ; then
-	exec check_mk --cache --check-discovery "$host"
+        exec check_mk --cache --check-discovery "$host"
     fi
 }
 
-max() {
-    printf "%s\n" "$@" | sort -g | grep -v -- '-' | tail -n1
-}
-
-min() {
-    printf "%s\n" "$@" | sort -g | grep -v -- '-' | head -n1
+to_ms(){
+        var=$1 n=$2
+        ms=${n%???}
+        [ ! "$ms" ] && ms=0
+        ms=$ms.${n:$((${#n} - 3))}
+        eval "$var=$ms"
 }
 
 check_icmp_imitation () {
-    dest=$1
-    rt_warn=$2
-    rt_crit=$3
-    loss_warn=$4
-    loss_crit=$5
-    fdate="$6"
-    read p1 p2 p3 p4 p5
-    if [ "$p1" -a "$p2" -a "$p3" -a "$p4" -a "$p5" ]; then
-        loss=0
-        count=0
-        math=""
-        [ "$p1" == "-" ] && loss=$((loss + 20)) || { math="$math + $p1"; count=$((count + 1)); }
-        [ "$p2" == "-" ] && loss=$((loss + 20)) || { math="$math + $p2"; count=$((count + 1)); }
-        [ "$p3" == "-" ] && loss=$((loss + 20)) || { math="$math + $p3"; count=$((count + 1)); }
-        [ "$p4" == "-" ] && loss=$((loss + 20)) || { math="$math + $p4"; count=$((count + 1)); }
-        [ "$p5" == "-" ] && loss=$((loss + 20)) || { math="$math + $p5"; count=$((count + 1)); }
-        
-        if [ $count -gt 0 ]; then
-		rt=$(echo "(0 $math) / $count * 1000" | bc -l)
-	        rt=${rt%%.*}
-                rt_display=$(echo "scale=2; (0 $math) / $count" | bc -l)
-                rt_min=$(min $p1 $p2 $p3 $p4 $p5)
-                rt_max=$(max $p1 $p2 $p3 $p4 $p5)
-        else
-                rt=0 rt_display=0 rt_min=0 rt_max=0
-        fi
-        state="OK"
-        [ $loss -ge $loss_warn -o $rt -ge $rt_warn ] && state="WARNING"
-        [ $loss -ge $loss_crit -o $rt -ge $rt_crit ] && state="CRITICAL"
+    read rts
+    dest=$1 warn=$2 crit=$3 fdate=$4
 
-        echo "$state - $dest : rta ${rt_display}ms, lost ${loss}% (fastpinger at $fdate)|rta=${rt_display}ms;${rt_warn};${rt_crit};0; pl=${loss}%;${loss_warn};${loss_crit};; rtmax=${rt_max}ms;;;; rtmin=${rt_min}ms;;;;"
-        case $state in
-            OK) return 0;;
-            WARNING) return 1;;
-            CRITICAL) return 2;;
-        esac
-    else
-        return 3;
-    fi
+    warn=${warn%\%}
+    crit=${crit%\%}
+    rt_warn=${warn%%,*}; rt_warn=${rt_warn%%.*}000
+    rt_crit=${crit%%,*}; rt_crit=${rt_crit%%.*}000
+    loss_warn=${warn##*,}; loss_warn=${loss_warn%%.*}
+    loss_crit=${crit##*,}; loss_crit=${loss_crit%%.*}
+
+    rt_display=0 rt_mean=0 rt_min=99999 rt_max=0 loss=0 count=0 sum=0
+    for rt in $rts; do
+            if [ "$rt" == "-" ]; then
+                loss=$((loss + 20))
+            else
+                rt=${rt//./}0  # fping always have two digits after the .
+                rt=${rt#0}
+                sum=$(($sum + $rt))
+                count=$((count + 1))
+                rt_mean=$(($sum / $count))
+                [ $rt -gt $rt_max ] && rt_max=$rt
+                [ $rt -lt $rt_min ] && rt_min=$rt
+            fi
+    done
+
+    state="OK"
+    [ $loss -ge $loss_warn -o $rt_mean -ge $rt_warn ] && state="WARNING"
+    [ $loss -ge $loss_crit -o $rt_mean -ge $rt_crit ] && state="CRITICAL"
+
+    to_ms rt_display $rt_mean
+    to_ms rt_max $rt_max
+    to_ms rt_min $rt_min
+    to_ms rt_warn $rt_warn
+    to_ms rt_crit $rt_crit
+    echo "$state - $dest: rta ${rt_display}ms, lost ${loss}% (fastpinger at $fdate)|rta=${rt_display}ms;${rt_warn};${rt_crit};0; pl=${loss}%;${loss_warn};${loss_crit};; rtmax=${rt_max}ms;;;; rtmin=${rt_min}ms;;;;"
+    case $state in
+        OK) return 0;;
+        WARNING) return 1;;
+        CRITICAL) return 2;;
+        *) return 3;;
+    esac
 }
 
 mode=$1
@@ -116,8 +118,9 @@ elif [ "$mode" == "ping" ]; then
 
     OPTS=`getopt -o 46w:c:n:i:I:m:l:t:b:H: -n 'parse-options' -- "$@"`
     
-    warn="200,40"
-    crit="500,80"
+    warn="200.00,40.00%"
+    crit="500.00,80.00%"
+    ip_familly=4
     while true; do
         case "$1" in
             -4|-6) ip_familly=${1#-}; shift;;
@@ -136,16 +139,10 @@ elif [ "$mode" == "ping" ]; then
     if [ "$multi" ]; then
         exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -m $multi -w "${warn}" -c "${crit}" "$dest"
     else
-        # Bash need integer
-        rt_warn="${warn%%.*}000"
-        rt_crit="${crit%%.*}000"
-	loss_warn=${warn##*,}; loss_warn=${loss_warn%%.*}
-	loss_crit=${crit##*,}; loss_crit=${loss_crit%%.*}
-
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
         sed -n "/duplicate/! s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP > $NAMED_PIPE &
-	check_icmp_imitation $dest $rt_warn $rt_crit $loss_warn $loss_crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
-	RET=$?
+        check_icmp_imitation $dest $warn $crit "$fdate" < $NAMED_PIPE  # cat is used to empty the pipe in case of duplicate
+        RET=$?
         if [ "$RET" == "3" ]; then
             exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -w "${warn}" -c "${crit}" "$dest"
         fi
