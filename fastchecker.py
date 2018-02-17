@@ -157,8 +157,10 @@ class FakeStdout(object):
         self.data += data
 
 
-def do_run_check(name, verbose=False):
-    name = get_modname(name)
+def do_run_check(hostname, verbose=False):
+    name = get_modname(hostname)
+    if name not in sys.modules:
+        return "3\n%s is not loaded in fastchecker" % hostname
     try:
         with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
             run_check(name, verbose)
@@ -183,10 +185,13 @@ def wsgi():
 
 
     @app.route("/inventory/<name>")
-    def inventory(name):
+    def inventory(hostname):
+        name = get_modname(hostname)
+        if name not in sys.modules:
+            return "3\n%s is not loaded in fastchecker" % name
         try:
             with mock.patch('check_mk.sys.stdout', new=FakeStdout()) as out:
-                sys.modules["check_mk"].check_discovery(name)
+                sys.modules["check_mk"].check_discovery(hostname)
         except SystemExit, e:
             return "%s\n%s" % (e.code, out.data)
 
@@ -202,14 +207,14 @@ def main():
        "--thunder-lock",
        "--add-header", "Connection: Close",
        "--procname-prefix-spaced", "fastchecker",
-       "--max-requests", "100",
+       "--max-requests", "500",
        "--die-on-term",
        "--ignore-sigpipe",
        "--listen", "2048",
-       "--processes", str(multiprocessing.cpu_count() * 2 + 1),
+       "--processes", str(multiprocessing.cpu_count() * 8 + 1),
        "--pidfile2", PIDFILE,
        "--wsgi-file", __file__,
-       "--harakiri", "120",
+       "--harakiri", "58",
        "--daemonize2", LOGPATH,
     ]
     uwsgi = spawn.find_executable("uwsgi")
