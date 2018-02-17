@@ -28,7 +28,7 @@ export SITENAME=$(id -un)
 . $BASE_DIR/paths.conf
 cd $BASE_DIR
 
-NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook_pipe.XXXXXX)
+NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook-pipe.XXXXXX)
 mkfifo $NAMED_PIPE
 legacy(){
     mode=$1
