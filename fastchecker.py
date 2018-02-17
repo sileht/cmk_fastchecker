@@ -184,7 +184,7 @@ def wsgi():
         return do_run_check(name, verbose=True)
 
 
-    @app.route("/inventory/<name>")
+    @app.route("/inventory/<hostname>")
     def inventory(hostname):
         name = get_modname(hostname)
         if name not in sys.modules:
@@ -215,6 +215,7 @@ def main():
        "--pidfile2", PIDFILE,
        "--wsgi-file", __file__,
        "--harakiri", "58",
+       "--disable-logging",
        "--daemonize2", LOGPATH,
     ]
     uwsgi = spawn.find_executable("uwsgi")
