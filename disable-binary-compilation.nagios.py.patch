@@ -1,5 +1,5 @@
---- /opt/omd/versions/1.4.0p24.cre/share/check_mk/modules/nagios.py.ori	2018-02-15 22:16:16.905602616 +0100
-+++ /opt/omd/versions/1.4.0p24.cre/share/check_mk/modules/nagios.py	2018-02-15 22:16:36.689621413 +0100
+--- a/share/check_mk/modules/nagios.py	2018-02-15 22:16:16.905602616 +0100
++++ b/share/check_mk/modules/nagios.py	2018-02-15 22:16:36.689621413 +0100
 @@ -1272,13 +1272,10 @@
              console.verbose(" (new content)", stream=sys.stderr)
  
