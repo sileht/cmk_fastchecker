@@ -116,11 +116,32 @@ def preload_checks():
     LOG.info("%d/%d checks loaded in %s." % (count, len(filenames),
                                              watch.elapsed()))
 
+def cleanup_globals(mod, hostname):
+    mod.g_agent_already_contacted = {}
+    mod.g_hostname = "unknown"
+    mod.g_item_state = {}
+    mod.g_infocache = {}
+    mod.g_agent_cache_info = {}
+    mod.g_broken_agent_hosts = set([])
+    mod.g_broken_snmp_hosts = set([])
+    mod.g_inactive_timerperiods = None
+    mod.g_walk_cache = {}
+    mod.g_timeout = None
+    # clear_other_hosts_oid_cache(None)
+    if mod.g_single_oid_hostname != hostname:
+        mod.g_single_oid_cache.clear()
+        mod.g_single_oid_hostname = hostname
+
+    # if mod.has_inline_snmp:
+    #    cleanup_inline_snmp_globals()
+
+
 # NOTE(sileht): Copy of the __main__ of check_mk check
-def run_check(name, verbose=False):
+def run_check(name, hostname, verbose=False):
     try:
         if verbose:
             cmk.log.set_verbosity(verbosity=1)
+        cleanup_globals(sys.modules[name], hostname)
         sys.exit(sys.modules[name].runner())
     except ImportError:
         sys.stdout.write("UNKNOWN - checks for %s is not loaded" % name)
@@ -163,7 +184,7 @@ def do_run_check(hostname, verbose=False):
         return "3\n%s is not loaded in fastchecker" % hostname
     try:
         with mock.patch('%s.sys.stdout' % name, new=FakeStdout()) as out:
-            run_check(name, verbose)
+            run_check(name, hostname, verbose)
     except SystemExit, e:
         return "%s\n%s" % (e.code, out.data)
 
