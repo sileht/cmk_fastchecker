@@ -15,13 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
-DATE=$(date '+%Y%m%d-%H%M')
-
 export SITENAME=$(id -un)
 . /omd/sites/${SITENAME}/etc/fastchecker.conf
 [ ! "$BASE_DIR" ] && { echo  "BASE_DIR is unset, please fill ~/etc/fastchecker.conf"; exit 1; }
 . $BASE_DIR/paths.conf
+
+DATE=$(date '+%Y%m%d/%H/fastpinger.dump.%Y%m%d-%H%M%S')
+FASTPINGER_ARCHIVE="${FASTPINGER_VARPATH}/${DATE}"
+FASTPINGER_DUMP_TMP="${FASTPINGER_DUMP}.tmp"
 
 cleanup() { rmdir $FASTPINGER_TMPPATH/run 2>/dev/null ; }
 trap cleanup EXIT
@@ -34,12 +35,11 @@ fi
 echo "Start fping $(cat ${FASTPINGER_IPSPATH} | wc -l) hosts..."
 cmd="fping --quiet --vcount=5 --period=500 --interval=1 --backoff=1 -f ${FASTPINGER_IPSPATH}"
 echo $cmd
-$cmd 2> ${FASTPINGER_DUMP}.tmp
-mv -f ${FASTPINGER_DUMP}.tmp ${FASTPINGER_DUMP}
-
-FASTPINGER_ARCHIVE=$FASTPINGER_ARCHIVE_PREFIX.$DATE
+$cmd 2> ${FASTPINGER_DUMP_TMP}
 if [ ! -f ${FASTPINGER_ARCHIVE} ] ; then
-	cp -f ${FASTPINGER_DUMP} ${FASTPINGER_ARCHIVE}
+	mkdir -p $(dirname ${FASTPINGER_ARCHIVE})
+	cp -f ${FASTPINGER_DUMP_TMP} ${FASTPINGER_ARCHIVE}
 	nohup xz -9 ${FASTPINGER_ARCHIVE} &> /dev/null &
 fi
+mv -f ${FASTPINGER_DUMP_TMP} ${FASTPINGER_DUMP}
 echo "Stop fping..."
