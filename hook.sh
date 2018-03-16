@@ -48,16 +48,16 @@ to_ms(){
 
 check_icmp_imitation () {
     read rts
-    dest=$1 warn=$2 crit=$3 fdate=$4
+    local dest=$1 warn=$2 crit=$3 fdate=$4
 
     warn=${warn%\%}
     crit=${crit%\%}
-    rt_warn=${warn%%,*}; rt_warn=${rt_warn%%.*}000
-    rt_crit=${crit%%,*}; rt_crit=${rt_crit%%.*}000
-    loss_warn=${warn##*,}; loss_warn=${loss_warn%%.*}
-    loss_crit=${crit##*,}; loss_crit=${loss_crit%%.*}
+    local rt_warn=${warn%%,*}; rt_warn=${rt_warn%%.*}000
+    local rt_crit=${crit%%,*}; rt_crit=${rt_crit%%.*}000
+    local loss_warn=${warn##*,}; loss_warn=${loss_warn%%.*}
+    local loss_crit=${crit##*,}; loss_crit=${loss_crit%%.*}
 
-    rt_display=0 rt_mean=0 rt_min=99999 rt_max=0 loss=0 count=0 sum=0
+    local rt_display=0 rt_mean=0 rt_min=99999 rt_max=0 loss=0 count=0 sum=0
     for rt in $rts; do
             if [ "$rt" == "-" ]; then
                 loss=$((loss + 20))
@@ -72,7 +72,7 @@ check_icmp_imitation () {
             fi
     done
 
-    state="OK"
+    local state="OK"
     [ $loss -ge $loss_warn -o $rt_mean -ge $rt_warn ] && state="WARNING"
     [ $loss -ge $loss_crit -o $rt_mean -ge $rt_crit ] && state="CRITICAL"
 
@@ -90,8 +90,13 @@ check_icmp_imitation () {
     esac
 }
 
-NAMED_PIPE=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook-pipe.XXXXXX)
-mkfifo $NAMED_PIPE
+create_pipe(){
+	local host="$1" mode="$2"
+	local named_pipe=$(mktemp --dry-run ${FASTCHECKER_TMPPATH}/hook-pipe.$host.$mode.XXXXXX)
+	rm -f $named_pipe
+	mkfifo $named_pipe
+	echo $named_pipe
+}
 
 mode=$1
 shift
@@ -102,6 +107,7 @@ if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
     # TODO(sileht): Move this in conf
     [ "$host" == "h7" ] && legacy $mode $host
 
+    NAMED_PIPE=$(create_pipe "$host" "$mode")
     curl -f -s http://localhost:5001/$mode/$host > $NAMED_PIPE &
     { read RET ; cat ;} < $NAMED_PIPE
 
@@ -140,6 +146,7 @@ elif [ "$mode" == "ping" ]; then
     if [ "$multi" ]; then
         exec ~/lib/nagios/plugins/check_icmp -${ip_familly} -m $multi -w "${warn}" -c "${crit}" "$dest"
     else
+        NAMED_PIPE=$(create_pipe "$dest" "$mode")
         # Format: <ip> : 0.48 0.33 0.46 0.46 0.39
         sed -n "/duplicate/! s/^$dest\s\s*:\s*//gp" $FASTPINGER_DUMP > $NAMED_PIPE &
         check_icmp_imitation $dest $warn $crit "$fdate" < $NAMED_PIPE
