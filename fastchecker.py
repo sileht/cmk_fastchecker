@@ -233,7 +233,7 @@ def main():
        "--die-on-term",
        "--ignore-sigpipe",
        "--listen", "2048",
-       "--processes", str(multiprocessing.cpu_count() * 8 + 1),
+       "--processes", str(multiprocessing.cpu_count() * 6 + 1),
        "--pidfile2", PIDFILE,
        "--wsgi-file", __file__,
        "--harakiri", "58",

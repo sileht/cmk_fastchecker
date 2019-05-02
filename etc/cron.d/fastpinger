@@ -1,3 +1,4 @@
 # Run fastpinger every minute
 * * * * * source ~/etc/fastchecker.conf; $BASE_DIR/fastpinger;
 * * * * * source ~/etc/fastchecker.conf; $BASE_DIR/fastpinger_push;
+* * * * * source ~/etc/fastchecker.conf; $BASE_DIR/fastpinger_push_prom | sponge /run/prometheus-node-exporter/fastpinger.prom;
