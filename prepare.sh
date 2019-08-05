@@ -15,8 +15,7 @@ unset LD_LIBRARY_PATH
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PIP_CONFIG_FILE=$BASE_DIR/pip.conf
 
-[ ! -d venv ] && virtualenv -vvv venv || true
-venv/bin/pip install -U -r requirements.txt
+pip install -r requirements.txt
 
 cat > $SITE/etc/fastchecker.conf <<EOF
 export BASE_DIR="$BASE_DIR"

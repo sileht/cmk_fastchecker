@@ -100,7 +100,7 @@ create_pipe(){
 
 mode=$1
 shift
-if [ "$mode" == "check" -o "$mode" == "inventory" ]; then
+if [ "$mode" == "check" -o "$mode" == "detail" -o "$mode" == "inventory" ]; then
     host="$1"
     # h7 checks take 3-4g of RAM, obviously a check_mk bug
     # due to the number of routes gathered

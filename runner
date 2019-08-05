@@ -24,6 +24,6 @@ export SITENAME=$(id -un)
 [ ! -d $FASTCHECKER_TMPPATH ] && mkdir -p $FASTCHECKER_TMPPATH
 [ ! -d $FASTPINGER_TMPPATH ] && mkdir -p $FASTPINGER_TMPPATH
 
-unset LD_LIBRARY_PATH
-source $BASE_DIR/venv/bin/activate
+export PYTHONPATH=~/version/lib/python
+
 exec python $BASE_DIR/$(basename $0).py "$@"

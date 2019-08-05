@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # Copyright (C) 2018 Mehdi Abaakouk <sileht@sileht.net>
 # 
