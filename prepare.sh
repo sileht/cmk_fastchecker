@@ -25,6 +25,6 @@ EOF
 
 mkdir -p $FASTCHECKER_TMPPATH $FASTPINGER_TMPPATH $FASTPINGER_VARPATH
 ln -sf $BASE_DIR/etc/init.d/fastchecker $SITE/etc/init.d/
-ln -sf $BASE_DIR/etc/init-hooks.d/icinga-restart-pre $SITE/etc/init-hooks.d
+ln -sf $BASE_DIR/etc/init-hooks.d/nagios-restart-pre $SITE/etc/init-hooks.d
 ln -sf $BASE_DIR/etc/cron.d/fastpinger $SITE/etc/cron.d
 ln -sf ../init.d/fastchecker $SITE/etc/rc.d/30-fastchecker

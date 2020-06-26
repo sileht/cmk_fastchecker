@@ -27,11 +27,11 @@ import multiprocessing
 import os
 
 import cmk
-import cmk.log
+import cmk.utils.log
 
 import cmk_base
 import cmk_base.checking as checking
-import cmk_base.checks as checks
+import cmk_base.check_api as check_api
 import cmk_base.discovery as discovery
 import cmk_base.config as config
 import cmk_base.ip_lookup as ip_lookup
@@ -41,7 +41,7 @@ import cmk_base.item_state as item_state
 
 import flask
 
-cmk.log.setup_console_logging()
+cmk.utils.log.setup_console_logging()
 
 LOG = daiquiri.getLogger(__name__)
 
@@ -90,9 +90,9 @@ def input_output_fixup(func):
 def wsgi():
     LOG.info("Loading check_mk module...")
     watch = StopWatch()
-    checks.load()
+    config.load_all_checks(check_api.get_check_api_context)
     config.load()
-    count = len(checks.check_info)
+    count = len(config.check_info)
     LOG.info("%d checks loaded in %s." % (count, watch.elapsed()))
 
     app = flask.Flask(__name__)
@@ -116,7 +116,7 @@ def wsgi():
     @app.route("/inventory/<hostname>")
     @input_output_fixup
     def inventory(hostname):
-        return discovery.do_inv_check(hostname, None)
+        return discovery.check_discovery(hostname, None)
 
     return app
 
